@@ -1,0 +1,10 @@
+{
+  "name": "cinema-caribe-monorepo",
+  "version": "1.0.0",
+  "description": "Cinema Caribe Fullstack App for Railway",
+  "scripts": {
+    "postinstall": "npm install --prefix backend && npm install --prefix frontend",
+    "build": "npm run build --prefix frontend",
+    "start": "npm start --prefix backend"
+  }
+}
