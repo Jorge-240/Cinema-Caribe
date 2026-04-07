@@ -31,7 +31,7 @@ def get_pool(app=None):
                 password=cfg['DB_PASSWORD'],
                 database=cfg['DB_NAME'],
                 charset='utf8mb4',
-                autocommit=False,
+                autocommit=True,
                 connection_timeout=10,
             )
             return _pool

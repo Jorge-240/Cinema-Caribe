@@ -49,7 +49,6 @@ class Usuario:
             "INSERT INTO usuarios (nombre, email, password, rol) VALUES (%s,%s,%s,%s)",
             (nombre, email, pw_hash, rol)
         )
-        db.commit()
         uid = cur.lastrowid
         cur.close()
         return uid
