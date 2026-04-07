@@ -451,7 +451,143 @@ def create_app(env='default'):
                     'message': str(e)
                 }), 500
 
-        # Blueprints - envoltos en try-catch para evitar crashear en startup
+        # Complete setup endpoint - TODO en un solo paso
+        @app.route('/complete-setup', methods=['GET', 'POST'])
+        def complete_setup():
+            """Ejecuta inicialización completa: tablas, usuarios, sala y asientos"""
+            try:
+                import mysql.connector
+                
+                conn = mysql.connector.connect(
+                    host=app.config.get('DB_HOST'),
+                    port=int(app.config.get('DB_PORT')),
+                    user=app.config.get('DB_USER'),
+                    password=app.config.get('DB_PASSWORD'),
+                    database=app.config.get('DB_NAME'),
+                    autocommit=True,
+                    charset='utf8mb4',
+                )
+                
+                cursor = conn.cursor(dictionary=True)
+                setup_steps = []
+                
+                # ===== PASO 1: Crear Sala =====
+                try:
+                    cursor.execute("DELETE FROM asientos WHERE sala_id NOT IN (SELECT id FROM salas)")
+                    cursor.execute("DELETE FROM salas")
+                    cursor.execute("""
+                        INSERT INTO salas (nombre, filas, cols) 
+                        VALUES ('Sala 1', 10, 15)
+                    """)
+                    setup_steps.append({'step': '1. Sala creada', 'status': 'success'})
+                    logger.info("✅ Sala 1 creada (10x15)")
+                except Exception as e:
+                    setup_steps.append({'step': '1. Crear Sala', 'status': 'error', 'error': str(e)})
+                    logger.error(f"Error creando sala: {e}")
+                
+                # ===== PASO 2: Generar Asientos =====
+                try:
+                    cursor.execute("""
+                        SELECT id, nombre, filas, cols FROM salas WHERE nombre = 'Sala 1'
+                    """)
+                    sala = cursor.fetchone()
+                    
+                    if sala:
+                        sala_id = sala['id']
+                        filas = sala['filas']
+                        cols = sala['cols']
+                        
+                        # Limpiar y generar
+                        cursor.execute("DELETE FROM asientos WHERE sala_id = %s", (sala_id,))
+                        
+                        letras = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+                        asientos_count = 0
+                        for fila_idx in range(filas):
+                            fila_letra = letras[fila_idx]
+                            for col_idx in range(1, cols + 1):
+                                numero = f"{fila_letra}{col_idx}"
+                                cursor.execute("""
+                                    INSERT INTO asientos (numero, fila, columna, sala_id) 
+                                    VALUES (%s, %s, %s, %s)
+                                """, (numero, fila_letra, col_idx, sala_id))
+                                asientos_count += 1
+                        
+                        setup_steps.append({'step': '2. Asientos generados', 'status': 'success', 'count': asientos_count})
+                        logger.info(f"✅ {asientos_count} asientos creados")
+                except Exception as e:
+                    setup_steps.append({'step': '2. Generar Asientos', 'status': 'error', 'error': str(e)})
+                    logger.error(f"Error generando asientos: {e}")
+                
+                # ===== PASO 3: Crear/resetear Usuarios =====
+                try:
+                    cursor.execute("DELETE FROM usuarios")
+                    
+                    test_users = [
+                        ('Admin User', 'admin@cinemacaribe.com', 'admin123', 'admin'),
+                        ('Validador', 'validador@cinemacaribe.com', 'validador123', 'validador'),
+                        ('Taquillero', 'taquilla@cinemacaribe.com', 'taquilla123', 'taquilla'),
+                    ]
+                    
+                    for nombre, email, password, rol in test_users:
+                        hashed_pwd = generate_password_hash(password)
+                        cursor.execute("""
+                            INSERT INTO usuarios (nombre, email, password, rol) 
+                            VALUES (%s, %s, %s, %s)
+                        """, (nombre, email, hashed_pwd, rol))
+                    
+                    setup_steps.append({'step': '3. Usuarios creados', 'status': 'success', 'count': len(test_users)})
+                    logger.info(f"✅ {len(test_users)} usuarios creados")
+                except Exception as e:
+                    setup_steps.append({'step': '3. Crear Usuarios', 'status': 'error', 'error': str(e)})
+                    logger.error(f"Error creando usuarios: {e}")
+                
+                # ===== PASO 4: Agregar una Película de Prueba =====
+                try:
+                    cursor.execute("DELETE FROM peliculas")
+                    cursor.execute("""
+                        INSERT INTO peliculas (titulo, descripcion, duracion, genero, clasificacion, estado) 
+                        VALUES (%s, %s, %s, %s, %s, %s)
+                    """, ('Noche en Cartagena', 'Una hermosa noche en Cartagena', 120, 'Drama', 'PG', 'activa'))
+                    
+                    # Obtener ID de la película
+                    cursor.execute("SELECT id FROM peliculas WHERE titulo = 'Noche en Cartagena'")
+                    pelicula = cursor.fetchone()
+                    
+                    if pelicula:
+                        pelicula_id = pelicula['id']
+                        
+                        # Agregar una función para hoy
+                        cursor.execute("""
+                            INSERT INTO funciones (pelicula_id, sala_id, fecha, hora, precio, estado) 
+                            VALUES (%s, %s, CURDATE(), %s, %s, %s)
+                        """, (pelicula_id, 1, '20:10:00', 25000, 'programada'))
+                    
+                    setup_steps.append({'step': '4. Película de prueba creada', 'status': 'success'})
+                    logger.info("✅ Película 'Noche en Cartagena' creada")
+                except Exception as e:
+                    setup_steps.append({'step': '4. Crear Película', 'status': 'error', 'error': str(e)})
+                    logger.error(f"Error creando película: {e}")
+                
+                cursor.close()
+                conn.close()
+                
+                return jsonify({
+                    'status': 'success',
+                    'message': 'Setup completado exitosamente',
+                    'steps': setup_steps,
+                    'credentials': {
+                        'admin': 'admin@cinemacaribe.com / admin123',
+                        'validador': 'validador@cinemacaribe.com / validador123',
+                        'taquilla': 'taquilla@cinemacaribe.com / taquilla123',
+                    }
+                }), 200
+                
+            except Exception as e:
+                logger.error(f"Error en complete-setup: {str(e)}", exc_info=True)
+                return jsonify({
+                    'status': 'error',
+                    'message': str(e)
+                }), 500
         try:
             from routes.main     import main_bp
             from routes.auth     import auth_bp
