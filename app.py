@@ -80,6 +80,56 @@ def create_app(env='default'):
                     'message': str(e)
                 }), 500
 
+        # Initialize endpoint - crear tablas si no existen
+        @app.route('/initialize', methods=['GET', 'POST'])
+        def initialize_database():
+            try:
+                # Leer el archivo SQL
+                with open(os.path.join(os.path.dirname(__file__), 'database.sql'), 'r', encoding='utf-8') as f:
+                    sql_content = f.read()
+                
+                # Conectar directamente a MySQL
+                import mysql.connector
+                
+                conn = mysql.connector.connect(
+                    host=app.config.get('DB_HOST'),
+                    port=int(app.config.get('DB_PORT')),
+                    user=app.config.get('DB_USER'),
+                    password=app.config.get('DB_PASSWORD'),
+                    autocommit=True,
+                    charset='utf8mb4',
+                )
+                
+                cursor = conn.cursor()
+                executed_count = 0
+                
+                # Ejecutar cada comando SQL
+                for statement in sql_content.split(';'):
+                    statement = statement.strip()
+                    if statement and not statement.startswith('--'):
+                        try:
+                            cursor.execute(statement)
+                            executed_count += 1
+                            logger.info(f"✅ SQL: {statement[:50]}...")
+                        except Exception as e:
+                            logger.warning(f"⚠️  SQL error: {e}")
+                
+                cursor.close()
+                conn.close()
+                
+                return jsonify({
+                    'status': 'success',
+                    'message': 'Base de datos inicializada',
+                    'statements_executed': executed_count
+                }), 200
+                
+            except Exception as e:
+                logger.error(f"Error inicializando BD: {str(e)}", exc_info=True)
+                return jsonify({
+                    'status': 'error',
+                    'message': str(e)
+                }), 500
+
         # Blueprints - envoltos en try-catch para evitar crashear en startup
         try:
             from routes.main     import main_bp
