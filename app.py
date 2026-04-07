@@ -85,6 +85,7 @@ def create_app(env='default'):
         def initialize_database():
             try:
                 import mysql.connector
+                import re
                 
                 # Conectar a la BD especificada
                 conn = mysql.connector.connect(
@@ -92,54 +93,80 @@ def create_app(env='default'):
                     port=int(app.config.get('DB_PORT')),
                     user=app.config.get('DB_USER'),
                     password=app.config.get('DB_PASSWORD'),
-                    database=app.config.get('DB_NAME'),  # Conectar a la BD directamente
+                    database=app.config.get('DB_NAME'),
                     autocommit=True,
                     charset='utf8mb4',
                 )
                 
                 cursor = conn.cursor()
                 executed_count = 0
+                skipped_count = 0
+                error_count = 0
                 
                 # Leer el archivo SQL
                 sql_file = os.path.join(os.path.dirname(__file__), 'database.sql')
                 with open(sql_file, 'r', encoding='utf-8') as f:
                     sql_content = f.read()
                 
-                # Reemplazar referencias a "cinema_caribe" con la BD actual
-                db_name = app.config.get('DB_NAME')
-                sql_content = sql_content.replace('cinema_caribe', db_name)
-                sql_content = sql_content.replace('CREATE DATABASE IF NOT EXISTS', '-- CREATE DATABASE IF NOT EXISTS')
+                # Procesar línea por línea - eliminar comentarios y espacios
+                lines = []
+                for line in sql_content.split('\n'):
+                    line = line.strip()
+                    # Saltar líneas vacías y comentarios
+                    if line and not line.startswith('--'):
+                        lines.append(line)
                 
-                # Ejecutar cada comando SQL
-                for statement in sql_content.split(';'):
-                    statement = statement.strip()
-                    if statement and not statement.startswith('--'):
+                # Recombinar y dividir por punto y coma
+                full_sql = '\n'.join(lines)
+                # Reemplazar referencias a cinema_caribe
+                full_sql = full_sql.replace('USE cinema_caribe;', '')
+                
+                # Dividir statements - pero cuidado con los puntos y comas dentro de COMMENT
+                statements = []
+                current_stmt = ""
+                for line in full_sql.split('\n'):
+                    if line:
+                        current_stmt += " " + line
+                        if line.endswith(';'):
+                            statements.append(current_stmt.strip())
+                            current_stmt = ""
+                
+                if current_stmt.strip():
+                    statements.append(current_stmt.strip())
+                
+                # Ejecutar cada statement
+                for stmt in statements:
+                    if stmt and not stmt.startswith('--'):
                         try:
-                            cursor.execute(statement)
+                            cursor.execute(stmt)
                             executed_count += 1
-                            logger.info(f"✅ SQL: {statement[:50]}...")
-                        except Exception as e:
+                            logger.info(f"✅ Ejecutado: {stmt[:60]}...")
+                        except mysql.connector.Error as e:
                             if 'already exists' in str(e).lower():
-                                logger.info(f"ℹ️  Table ya existe: {e}")
+                                skipped_count += 1
+                                logger.info(f"ℹ️  Ya existe: {stmt[:60]}...")
                             else:
-                                logger.warning(f"⚠️  SQL error: {e}")
+                                error_count += 1
+                                logger.warning(f"⚠️  Error: {e}")
                 
                 cursor.close()
                 conn.close()
                 
                 return jsonify({
                     'status': 'success',
-                    'message': f'Base de datos {db_name} inicializada',
-                    'statements_executed': executed_count,
-                    'database': db_name
+                    'database': app.config.get('DB_NAME'),
+                    'executed': executed_count,
+                    'skipped': skipped_count,
+                    'errors': error_count,
+                    'total_statements': len(statements)
                 }), 200
                 
             except Exception as e:
                 logger.error(f"Error inicializando BD: {str(e)}", exc_info=True)
                 return jsonify({
                     'status': 'error',
-                    'message': str(e),
-                    'database': app.config.get('DB_NAME')
+                    'database': app.config.get('DB_NAME'),
+                    'message': str(e)
                 }), 500
 
         # Blueprints - envoltos en try-catch para evitar crashear en startup
