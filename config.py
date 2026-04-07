@@ -81,7 +81,14 @@ class Config:
         else:
             DB_NAME = db_name
             
-        logger.info(f"✅ Config: Usando individual env vars: {DB_HOST}:{DB_PORT}/{DB_NAME} user={DB_USER}")
+        # En Railway, MYSQLDATABASE viene como "railway", así que usarlo
+        # Pero si está en desarrollo localmente, usar cinema_caribe
+        if os.environ.get('RAILWAY_ENVIRONMENT'):
+            # Estamos en Railway - usar la BD que Railway proporciona
+            DB_NAME = os.environ.get('MYSQLDATABASE') or os.environ.get('MYSQL_DATABASE') or 'railway'
+            logger.info(f"✅ Config Railway: Usando BD: {DB_NAME}")
+        else:
+            logger.info(f"✅ Config Local: Usando individual env vars: {DB_HOST}:{DB_PORT}/{DB_NAME} user={DB_USER}")
 
     UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'static', 'img')
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024

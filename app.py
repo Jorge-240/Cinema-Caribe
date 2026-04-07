@@ -84,24 +84,31 @@ def create_app(env='default'):
         @app.route('/initialize', methods=['GET', 'POST'])
         def initialize_database():
             try:
-                # Leer el archivo SQL
-                with open(os.path.join(os.path.dirname(__file__), 'database.sql'), 'r', encoding='utf-8') as f:
-                    sql_content = f.read()
-                
-                # Conectar directamente a MySQL
                 import mysql.connector
                 
+                # Conectar a la BD especificada
                 conn = mysql.connector.connect(
                     host=app.config.get('DB_HOST'),
                     port=int(app.config.get('DB_PORT')),
                     user=app.config.get('DB_USER'),
                     password=app.config.get('DB_PASSWORD'),
+                    database=app.config.get('DB_NAME'),  # Conectar a la BD directamente
                     autocommit=True,
                     charset='utf8mb4',
                 )
                 
                 cursor = conn.cursor()
                 executed_count = 0
+                
+                # Leer el archivo SQL
+                sql_file = os.path.join(os.path.dirname(__file__), 'database.sql')
+                with open(sql_file, 'r', encoding='utf-8') as f:
+                    sql_content = f.read()
+                
+                # Reemplazar referencias a "cinema_caribe" con la BD actual
+                db_name = app.config.get('DB_NAME')
+                sql_content = sql_content.replace('cinema_caribe', db_name)
+                sql_content = sql_content.replace('CREATE DATABASE IF NOT EXISTS', '-- CREATE DATABASE IF NOT EXISTS')
                 
                 # Ejecutar cada comando SQL
                 for statement in sql_content.split(';'):
@@ -112,22 +119,27 @@ def create_app(env='default'):
                             executed_count += 1
                             logger.info(f"✅ SQL: {statement[:50]}...")
                         except Exception as e:
-                            logger.warning(f"⚠️  SQL error: {e}")
+                            if 'already exists' in str(e).lower():
+                                logger.info(f"ℹ️  Table ya existe: {e}")
+                            else:
+                                logger.warning(f"⚠️  SQL error: {e}")
                 
                 cursor.close()
                 conn.close()
                 
                 return jsonify({
                     'status': 'success',
-                    'message': 'Base de datos inicializada',
-                    'statements_executed': executed_count
+                    'message': f'Base de datos {db_name} inicializada',
+                    'statements_executed': executed_count,
+                    'database': db_name
                 }), 200
                 
             except Exception as e:
                 logger.error(f"Error inicializando BD: {str(e)}", exc_info=True)
                 return jsonify({
                     'status': 'error',
-                    'message': str(e)
+                    'message': str(e),
+                    'database': app.config.get('DB_NAME')
                 }), 500
 
         # Blueprints - envoltos en try-catch para evitar crashear en startup
