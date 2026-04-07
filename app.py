@@ -8,6 +8,7 @@ from config import config
 from utils import db as db_utils
 import os
 import logging
+from werkzeug.security import generate_password_hash
 
 # Logging
 logging.basicConfig(level=logging.INFO)
@@ -166,6 +167,100 @@ def create_app(env='default'):
                 return jsonify({
                     'status': 'error',
                     'database': app.config.get('DB_NAME'),
+                    'message': str(e)
+                }), 500
+
+        # Seed endpoint - agregar usuarios de prueba
+        @app.route('/seed', methods=['GET', 'POST'])
+        def seed_database():
+            try:
+                import mysql.connector
+                
+                conn = mysql.connector.connect(
+                    host=app.config.get('DB_HOST'),
+                    port=int(app.config.get('DB_PORT')),
+                    user=app.config.get('DB_USER'),
+                    password=app.config.get('DB_PASSWORD'),
+                    database=app.config.get('DB_NAME'),
+                    autocommit=True,
+                    charset='utf8mb4',
+                )
+                
+                cursor = conn.cursor()
+                inserted = 0
+                skipped = 0
+                
+                # Usuarios de prueba
+                test_users = [
+                    {
+                        'nombre': 'Admin User',
+                        'email': 'admin@cinemacaribe.com',
+                        'password': 'admin123',
+                        'rol': 'admin'
+                    },
+                    {
+                        'nombre': 'Validador',
+                        'email': 'validador@cinemacaribe.com',
+                        'password': 'validador123',
+                        'rol': 'validador'
+                    },
+                    {
+                        'nombre': 'Taquillero',
+                        'email': 'taquilla@cinemacaribe.com',
+                        'password': 'taquilla123',
+                        'rol': 'taquilla'
+                    },
+                ]
+                
+                # También agregar una sala por defecto
+                try:
+                    cursor.execute("""
+                        INSERT INTO salas (nombre, filas, cols) 
+                        VALUES ('Sala 1', 10, 15)
+                    """)
+                    logger.info("✅ Sala agregada")
+                except Exception as e:
+                    logger.info(f"ℹ️  Sala ya existe: {e}")
+                
+                # Insertar usuarios
+                for user in test_users:
+                    try:
+                        # Verificar si existe
+                        cursor.execute("SELECT id FROM usuarios WHERE email = %s", (user['email'],))
+                        if cursor.fetchone():
+                            skipped += 1
+                            logger.info(f"ℹ️  Usuario ya existe: {user['email']}")
+                        else:
+                            # Insertar nuevo usuario
+                            hashed_pwd = generate_password_hash(user['password'])
+                            cursor.execute("""
+                                INSERT INTO usuarios (nombre, email, password, rol) 
+                                VALUES (%s, %s, %s, %s)
+                            """, (user['nombre'], user['email'], hashed_pwd, user['rol']))
+                            inserted += 1
+                            logger.info(f"✅ Usuario creado: {user['email']}")
+                    except Exception as e:
+                        logger.error(f"Error insertando usuario: {e}")
+                
+                cursor.close()
+                conn.close()
+                
+                return jsonify({
+                    'status': 'success',
+                    'message': 'Base de datos poblada con datos de prueba',
+                    'users_inserted': inserted,
+                    'users_skipped': skipped,
+                    'credentials': {
+                        'admin': {'email': 'admin@cinemacaribe.com', 'password': 'admin123'},
+                        'validador': {'email': 'validador@cinemacaribe.com', 'password': 'validador123'},
+                        'taquilla': {'email': 'taquilla@cinemacaribe.com', 'password': 'taquilla123'},
+                    }
+                }), 200
+                
+            except Exception as e:
+                logger.error(f"Error en seed: {str(e)}", exc_info=True)
+                return jsonify({
+                    'status': 'error',
                     'message': str(e)
                 }), 500
 
