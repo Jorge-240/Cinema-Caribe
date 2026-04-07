@@ -40,6 +40,46 @@ def create_app(env='default'):
             }
             return jsonify(data), 200
 
+        # Setup endpoint - verificar e inicializar BD si es necesario
+        @app.route('/setup')
+        def setup_db():
+            try:
+                from utils.db import get_pool
+                pool = get_pool(app)
+                conn = pool.get_connection()
+                cur = conn.cursor()
+                
+                # Verificar si existen las tablas principales
+                cur.execute("""
+                    SELECT COUNT(*) FROM information_schema.TABLES 
+                    WHERE TABLE_SCHEMA = %s 
+                    AND TABLE_NAME IN ('peliculas', 'funciones', 'usuarios', 'tiquetes')
+                """, (app.config.get('DB_NAME'),))
+                
+                existing_tables = cur.fetchone()[0]
+                cur.close()
+                conn.close()
+                
+                if existing_tables >= 4:
+                    return jsonify({
+                        'status': 'ready',
+                        'message': 'Base de datos inicializada correctamente',
+                        'tables_found': existing_tables
+                    }), 200
+                else:
+                    return jsonify({
+                        'status': 'needs_init',
+                        'message': f'Base de datos necesita inicialización. Tablas encontradas: {existing_tables}/4',
+                        'action': 'Por favor contacta al administrador para ejecutar: python init_db.py'
+                    }), 503
+                    
+            except Exception as e:
+                logger.error(f"Error en setup: {str(e)}")
+                return jsonify({
+                    'status': 'error',
+                    'message': str(e)
+                }), 500
+
         # Blueprints - envoltos en try-catch para evitar crashear en startup
         try:
             from routes.main     import main_bp
