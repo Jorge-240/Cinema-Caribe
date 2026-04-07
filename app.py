@@ -170,9 +170,117 @@ def create_app(env='default'):
                     'message': str(e)
                 }), 500
 
-        # Seed endpoint - agregar usuarios de prueba
-        @app.route('/seed', methods=['GET', 'POST'])
-        def seed_database():
+        # Check credentials endpoint - verificar si las credenciales funcionan
+        @app.route('/check-creds', methods=['GET'])
+        def check_credentials():
+            try:
+                import mysql.connector
+                
+                conn = mysql.connector.connect(
+                    host=app.config.get('DB_HOST'),
+                    port=int(app.config.get('DB_PORT')),
+                    user=app.config.get('DB_USER'),
+                    password=app.config.get('DB_PASSWORD'),
+                    database=app.config.get('DB_NAME'),
+                    autocommit=True,
+                    charset='utf8mb4',
+                )
+                
+                cursor = conn.cursor(dictionary=True)
+                cursor.execute("SELECT id, email, rol FROM usuarios LIMIT 10")
+                users = cursor.fetchall()
+                
+                cursor.close()
+                conn.close()
+                
+                return jsonify({
+                    'status': 'ok',
+                    'database': app.config.get('DB_NAME'),
+                    'users_count': len(users),
+                    'users': users
+                }), 200
+                
+            except Exception as e:
+                return jsonify({
+                    'status': 'error',
+                    'message': str(e)
+                }), 500
+
+        # Reset users endpoint - limpiar y recrear usuarios
+        @app.route('/reset-users', methods=['GET', 'POST'])
+        def reset_users():
+            try:
+                import mysql.connector
+                
+                conn = mysql.connector.connect(
+                    host=app.config.get('DB_HOST'),
+                    port=int(app.config.get('DB_PORT')),
+                    user=app.config.get('DB_USER'),
+                    password=app.config.get('DB_PASSWORD'),
+                    database=app.config.get('DB_NAME'),
+                    autocommit=True,
+                    charset='utf8mb4',
+                )
+                
+                cursor = conn.cursor()
+                
+                # Limpiar usuarios existentes
+                cursor.execute("DELETE FROM usuarios")
+                logger.info("✅ Usuarios eliminados")
+                
+                # Usuarios de prueba
+                test_users = [
+                    {
+                        'nombre': 'Admin User',
+                        'email': 'admin@cinemacaribe.com',
+                        'password': 'admin123',
+                        'rol': 'admin'
+                    },
+                    {
+                        'nombre': 'Validador',
+                        'email': 'validador@cinemacaribe.com',
+                        'password': 'validador123',
+                        'rol': 'validador'
+                    },
+                    {
+                        'nombre': 'Taquillero',
+                        'email': 'taquilla@cinemacaribe.com',
+                        'password': 'taquilla123',
+                        'rol': 'taquilla'
+                    },
+                ]
+                
+                # Insertar usuarios
+                inserted = 0
+                for user in test_users:
+                    hashed_pwd = generate_password_hash(user['password'])
+                    cursor.execute("""
+                        INSERT INTO usuarios (nombre, email, password, rol) 
+                        VALUES (%s, %s, %s, %s)
+                    """, (user['nombre'], user['email'], hashed_pwd, user['rol']))
+                    inserted += 1
+                    logger.info(f"✅ Usuario creado: {user['email']}")
+                
+                cursor.close()
+                conn.close()
+                
+                return jsonify({
+                    'status': 'success',
+                    'message': 'Usuarios recreados exitosamente',
+                    'users_inserted': inserted,
+                    'credentials': {
+                        'admin': {'email': 'admin@cinemacaribe.com', 'password': 'admin123'},
+                        'validador': {'email': 'validador@cinemacaribe.com', 'password': 'validador123'},
+                        'taquilla': {'email': 'taquilla@cinemacaribe.com', 'password': 'taquilla123'},
+                    }
+                }), 200
+                
+            except Exception as e:
+                logger.error(f"Error en reset-users: {str(e)}", exc_info=True)
+                return jsonify({
+                    'status': 'error',
+                    'message': str(e)
+                }), 500
             try:
                 import mysql.connector
                 
