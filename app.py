@@ -561,8 +561,28 @@ def create_app(env='default'):
                             INSERT INTO funciones (pelicula_id, sala_id, fecha, hora, precio, estado) 
                             VALUES (%s, %s, CURDATE(), %s, %s, %s)
                         """, (pelicula_id, 1, '20:10:00', 25000, 'programada'))
+                        
+                        # Obtener ID de la función recién creada
+                        cursor.execute("SELECT id FROM funciones WHERE pelicula_id = %s AND sala_id = 1 ORDER BY id DESC LIMIT 1", (pelicula_id,))
+                        funcion = cursor.fetchone()
+                        
+                        if funcion:
+                            funcion_id = funcion['id']
+                            
+                            # Crear relaciones funcion_asiento para todos los asientos de la sala
+                            cursor.execute("SELECT id FROM asientos WHERE sala_id = 1")
+                            asientos_sala = cursor.fetchall()
+                            
+                            for asiento in asientos_sala:
+                                cursor.execute("""
+                                    INSERT INTO funcion_asiento (funcion_id, asiento_id, precio, estado) 
+                                    VALUES (%s, %s, %s, %s)
+                                """, (funcion_id, asiento['id'], 25000, 'disponible'))
+                            
+                            setup_steps.append({'step': '4b. Relaciones función-asiento creadas', 'status': 'success', 'count': len(asientos_sala)})
+                            logger.info(f"✅ {len(asientos_sala)} relaciones funcion_asiento creadas")
                     
-                    setup_steps.append({'step': '4. Película de prueba creada', 'status': 'success'})
+                    setup_steps.append({'step': '4. Película y función de prueba creadas', 'status': 'success'})
                     logger.info("✅ Película 'Noche en Cartagena' creada")
                 except Exception as e:
                     setup_steps.append({'step': '4. Crear Película', 'status': 'error', 'error': str(e)})
