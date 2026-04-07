@@ -15,51 +15,61 @@ logger = logging.getLogger(__name__)
 
 
 def create_app(env='default'):
-    app = Flask(__name__)
-    app.config.from_object(config[env])
+    try:
+        app = Flask(__name__)
+        app.config.from_object(config[env])
 
-    # Registrar teardown de BD (conexión LAZY — no conecta al arrancar)
-    db_utils.init_app(app)
+        # Registrar teardown de BD (conexión LAZY — no conecta al arrancar)
+        db_utils.init_app(app)
 
-    # Blueprints
-    from routes.main     import main_bp
-    from routes.auth     import auth_bp
-    from routes.tiquetes import tiquetes_bp
-    from routes.admin    import admin_bp
+        # Health-check para Railway (ANTES de blueprints, no requiere BD)
+        @app.route('/health')
+        def health():
+            return jsonify({'status': 'ok', 'version': '1.0'}), 200
 
-    app.register_blueprint(main_bp)
-    app.register_blueprint(auth_bp)
-    app.register_blueprint(tiquetes_bp)
-    app.register_blueprint(admin_bp)
+        # Blueprints - envoltos en try-catch para evitar crashear en startup
+        try:
+            from routes.main     import main_bp
+            from routes.auth     import auth_bp
+            from routes.tiquetes import tiquetes_bp
+            from routes.admin    import admin_bp
 
-    # Context processor: datos de sesión disponibles en todos los templates
-    @app.context_processor
-    def inject_user():
-        return {
-            'usuario_id':     session.get('usuario_id'),
-            'usuario_nombre': session.get('usuario_nombre'),
-            'usuario_rol':    session.get('rol')
-        }
+            app.register_blueprint(main_bp)
+            app.register_blueprint(auth_bp)
+            app.register_blueprint(tiquetes_bp)
+            app.register_blueprint(admin_bp)
+        except Exception as e:
+            logger.error(f"Error al registrar blueprints: {e}")
+            # La app aún puede servir el /health
 
-    # Health-check para Railway (no requiere BD)
-    @app.route('/health')
-    def health():
-        return jsonify({'status': 'ok', 'version': '1.0'}), 200
+        # Context processor: datos de sesión disponibles en todos los templates
+        @app.context_processor
+        def inject_user():
+            return {
+                'usuario_id':     session.get('usuario_id'),
+                'usuario_nombre': session.get('usuario_nombre'),
+                'usuario_rol':    session.get('rol')
+            }
 
-    # Manejadores de error
-    @app.errorhandler(404)
-    def not_found(e):
-        return render_template('errors/404.html'), 404
+        # Manejadores de error
+        @app.errorhandler(404)
+        def not_found(e):
+            return render_template('errors/404.html'), 404
 
-    @app.errorhandler(500)
-    def server_error(e):
-        logger.error(f"Error 500: {e}")
-        return render_template('errors/500.html'), 500
+        @app.errorhandler(500)
+        def server_error(e):
+            logger.error(f"Error 500: {e}")
+            return render_template('errors/500.html'), 500
 
-    # Carpeta QR
-    os.makedirs(os.path.join(app.static_folder, 'img', 'qr'), exist_ok=True)
+        # Carpeta QR
+        os.makedirs(os.path.join(app.static_folder, 'img', 'qr'), exist_ok=True)
 
-    return app
+        logger.info(f"✅ App creada con éxito en modo {env}")
+        return app
+        
+    except Exception as e:
+        logger.error(f"❌ Error crítico creando app: {e}", exc_info=True)
+        raise
 
 
 # Auto-detectar entorno Railway
