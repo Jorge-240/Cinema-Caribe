@@ -372,6 +372,85 @@ def create_app(env='default'):
                     'message': str(e)
                 }), 500
 
+        # Generate seats endpoint - crear asientos para las salas
+        @app.route('/generate-seats', methods=['GET', 'POST'])
+        def generate_seats():
+            try:
+                import mysql.connector
+                
+                conn = mysql.connector.connect(
+                    host=app.config.get('DB_HOST'),
+                    port=int(app.config.get('DB_PORT')),
+                    user=app.config.get('DB_USER'),
+                    password=app.config.get('DB_PASSWORD'),
+                    database=app.config.get('DB_NAME'),
+                    autocommit=True,
+                    charset='utf8mb4',
+                )
+                
+                cursor = conn.cursor(dictionary=True)
+                
+                # Obtener salas
+                cursor.execute("SELECT id, nombre, filas, cols FROM salas")
+                salas = cursor.fetchall()
+                
+                if not salas:
+                    return jsonify({
+                        'status': 'error',
+                        'message': 'No hay salas creadas'
+                    }), 400
+                
+                total_asientos = 0
+                salas_procesadas = []
+                
+                # Generar asientos para cada sala
+                for sala in salas:
+                    sala_id = sala['id']
+                    sala_nombre = sala['nombre']
+                    filas = sala['filas']
+                    cols = sala['cols']
+                    
+                    # Limpiar asientos existentes
+                    cursor.execute("DELETE FROM asientos WHERE sala_id = %s", (sala_id,))
+                    
+                    # Generar nuevos asientos
+                    letras = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+                    asientos_creados = 0
+                    
+                    for fila_idx in range(filas):
+                        fila_letra = letras[fila_idx]
+                        for col_idx in range(1, cols + 1):
+                            numero = f"{fila_letra}{col_idx}"
+                            cursor.execute("""
+                                INSERT INTO asientos (numero, fila, columna, sala_id) 
+                                VALUES (%s, %s, %s, %s)
+                            """, (numero, fila_letra, col_idx, sala_id))
+                            asientos_creados += 1
+                            total_asientos += 1
+                    
+                    salas_procesadas.append({
+                        'sala': sala_nombre,
+                        'asientos': asientos_creados
+                    })
+                    logger.info(f"✅ {asientos_creados} asientos creados para {sala_nombre}")
+                
+                cursor.close()
+                conn.close()
+                
+                return jsonify({
+                    'status': 'success',
+                    'message': f'{total_asientos} asientos generados',
+                    'salas_procesadas': salas_procesadas,
+                    'total_asientos': total_asientos
+                }), 200
+                
+            except Exception as e:
+                logger.error(f"Error en generate-seats: {str(e)}", exc_info=True)
+                return jsonify({
+                    'status': 'error',
+                    'message': str(e)
+                }), 500
+
         # Blueprints - envoltos en try-catch para evitar crashear en startup
         try:
             from routes.main     import main_bp
