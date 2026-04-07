@@ -22,10 +22,24 @@ def create_app(env='default'):
         # Registrar teardown de BD (conexión LAZY — no conecta al arrancar)
         db_utils.init_app(app)
 
-        # Health-check para Railway (ANTES de blueprints, no requiere BD)
+    # Health-check para Railway (ANTES de blueprints, no requiere BD)
         @app.route('/health')
         def health():
             return jsonify({'status': 'ok', 'version': '1.0'}), 200
+
+        # Debug endpoint (solo en producción, es super seguro)
+        @app.route('/debug')
+        def debug_info():
+            import os
+            data = {
+                'app_running': True,
+                'environment': os.environ.get('FLASK_ENV'),
+                'db_host': app.config.get('DB_HOST'),
+                'db_user': app.config.get('DB_USER'),
+                'db_name': app.config.get('DB_NAME'),
+                'railway_env': os.environ.get('RAILWAY_ENVIRONMENT'),
+            }
+            return jsonify(data), 200
 
         # Blueprints - envoltos en try-catch para evitar crashear en startup
         try:
@@ -56,10 +70,17 @@ def create_app(env='default'):
         def not_found(e):
             return render_template('errors/404.html'), 404
 
-        @app.errorhandler(500)
-        def server_error(e):
-            logger.error(f"Error 500: {e}")
-            return render_template('errors/500.html'), 500
+    @app.errorhandler(500)
+    def server_error(e):
+        logger.error(f"Error 500: {str(e)}", exc_info=True)
+        
+        # Si es error de conexión a BD, mostrar mensaje amigable
+        if 'mysql' in str(e).lower() or 'database' in str(e).lower() or 'connection' in str(e).lower():
+            return render_template('errors/500.html', 
+                                   error_msg='Error de conexión a la base de datos. Por favor intenta más tarde.'), 500
+        
+        return render_template('errors/500.html', 
+                               error_msg='Error interno del servidor. Nuestro equipo está trabajando en ello.'), 500
 
         # Carpeta QR
         os.makedirs(os.path.join(app.static_folder, 'img', 'qr'), exist_ok=True)

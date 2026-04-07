@@ -45,8 +45,14 @@ def get_pool(app=None):
 def get_db():
     """Obtiene (o reutiliza) la conexión del request actual."""
     if 'db' not in g:
-        pool = get_pool()
-        g.db = pool.get_connection()
+        try:
+            pool = get_pool()
+            g.db = pool.get_connection()
+        except RuntimeError as e:
+            # Log pero no crashear - devolver None para que routes maneje
+            from flask import current_app
+            current_app.logger.error(f"No se pudo conectar a BD: {e}")
+            raise Exception(f"Base de datos no disponible: {str(e)}")
     return g.db
 
 
