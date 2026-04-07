@@ -1,0 +1,85 @@
+{% extends 'base.html' %}
+{% block title %}Películas — Admin Cinema Caribe{% endblock %}
+
+{% block content %}
+<div class="cc-page-header">
+  <div class="container">
+    <nav aria-label="breadcrumb"><ol class="breadcrumb mb-1">
+      <li class="breadcrumb-item"><a href="{{ url_for('admin.dashboard') }}">Admin</a></li>
+      <li class="breadcrumb-item active">Películas</li>
+    </ol></nav>
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <h1><i class="bi bi-film me-2" style="color:var(--cc-orange);"></i>Gestión de <span style="color:var(--cc-orange);">Películas</span></h1>
+      <a href="{{ url_for('admin.nueva_pelicula') }}" class="cc-btn-primary">
+        <i class="bi bi-plus-circle"></i> Nueva Película
+      </a>
+    </div>
+  </div>
+</div>
+
+<div class="container pb-5">
+  {% if peliculas %}
+  <div class="table-responsive cc-card">
+    <table class="cc-table">
+      <thead>
+        <tr>
+          <th>Póster</th>
+          <th>Título</th>
+          <th>Género</th>
+          <th>Duración</th>
+          <th>Clasificación</th>
+          <th>Estado</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in peliculas %}
+        <tr class="fade-in-up">
+          <td>
+            <img src="{{ p.imagen_url }}" width="40" height="55"
+                 style="object-fit:cover;border-radius:6px;">
+          </td>
+          <td class="fw-700">{{ p.titulo }}</td>
+          <td><span class="cc-movie-genre">{{ p.genero }}</span></td>
+          <td>{{ p.duracion }} min</td>
+          <td><span class="badge bg-warning text-dark">{{ p.clasificacion }}</span></td>
+          <td>
+            <span class="cc-badge {{ 'cc-badge-valido' if p.estado == 'activa' else 'cc-badge-usado' }}">
+              {{ p.estado | upper }}
+            </span>
+          </td>
+          <td>
+            <div class="d-flex gap-2">
+              <a href="{{ url_for('admin.editar_pelicula', pid=p.id) }}"
+                 class="btn btn-sm cc-btn-outline" title="Editar">
+                <i class="bi bi-pencil"></i>
+              </a>
+              <form method="POST" action="{{ url_for('admin.eliminar_pelicula', pid=p.id) }}"
+                    onsubmit="return confirm('¿Eliminar película?')">
+                <button class="btn btn-sm" style="background:rgba(239,68,68,.15);color:#ef4444;border:1px solid #ef4444;border-radius:8px;"
+                        title="Eliminar">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </form>
+              <a href="{{ url_for('main.detalle_pelicula', pid=p.id) }}"
+                 class="btn btn-sm cc-btn-secondary" title="Ver">
+                <i class="bi bi-eye"></i>
+              </a>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="text-center py-5 cc-card">
+    <i class="bi bi-film display-1 opacity-10"></i>
+    <h4 class="text-muted mt-3">No hay películas registradas.</h4>
+    <a href="{{ url_for('admin.nueva_pelicula') }}" class="cc-btn-primary mt-3">
+      <i class="bi bi-plus-circle"></i> Agregar primera película
+    </a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

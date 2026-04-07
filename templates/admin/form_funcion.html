@@ -1,0 +1,81 @@
+{% extends 'base.html' %}
+{% block title %}{{ 'Editar' if funcion else 'Nueva' }} Función — Admin{% endblock %}
+
+{% block content %}
+<div class="cc-page-header">
+  <div class="container">
+    <nav aria-label="breadcrumb"><ol class="breadcrumb mb-1">
+      <li class="breadcrumb-item"><a href="{{ url_for('admin.dashboard') }}">Admin</a></li>
+      <li class="breadcrumb-item"><a href="{{ url_for('admin.funciones') }}">Funciones</a></li>
+      <li class="breadcrumb-item active">{{ 'Editar' if funcion else 'Nueva' }}</li>
+    </ol></nav>
+    <h1>{{ 'Editar' if funcion else 'Nueva' }} <span style="color:var(--cc-orange);">Función</span></h1>
+  </div>
+</div>
+
+<div class="container pb-5">
+  <div class="row justify-content-center">
+    <div class="col-lg-6">
+      <div class="cc-card">
+        <form method="POST" action="{{ url_for('admin.editar_funcion', fid=funcion.id) if funcion else url_for('admin.nueva_funcion') }}">
+          <div class="mb-3">
+            <label class="cc-form-label">Película *</label>
+            <select name="pelicula_id" class="form-select cc-form-control" required>
+              <option value="">— Selecciona película —</option>
+              {% for p in peliculas %}
+              <option value="{{ p.id }}" {{ 'selected' if funcion and funcion.pelicula_id == p.id }}>
+                {{ p.titulo }} ({{ p.duracion }} min)
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="row g-3 mb-3">
+            <div class="col-6">
+              <label class="cc-form-label">Fecha *</label>
+              <input type="date" name="fecha" class="form-control cc-form-control"
+                     value="{{ funcion.fecha if funcion else '' }}"
+                     required>
+            </div>
+            <div class="col-6">
+              <label class="cc-form-label">Hora *</label>
+              <input type="time" name="hora" class="form-control cc-form-control"
+                     value="{{ funcion.hora[:5] if funcion and funcion.hora is string else funcion.hora.strftime('%H:%M') if funcion else '' }}" required>
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="cc-form-label">Precio (COP) *</label>
+            <input type="number" name="precio" class="form-control cc-form-control"
+                   value="{{ '{:.0f}'.format(funcion.precio) if funcion else 18000 }}" min="1000" step="500" required>
+          </div>
+          <div class="mb-4">
+            <label class="cc-form-label">Estado</label>
+            <select name="estado" class="form-select cc-form-control">
+              {% for s in ['programada','en_curso','finalizada','cancelada'] %}
+              <option value="{{ s }}" {{ 'selected' if funcion and funcion.estado == s }}>
+                {{ s | title }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          {% if not funcion %}
+          <div class="alert" style="background:rgba(240,165,0,.1);border:1px solid rgba(240,165,0,.3);border-radius:10px;font-size:.85rem;">
+            <i class="bi bi-info-circle text-gold me-2"></i>
+            El sistema validará automáticamente que no haya traslape de horarios en la sala.
+          </div>
+          {% endif %}
+
+          <hr class="cc-separator">
+          <div class="d-flex gap-3">
+            <button type="submit" class="cc-btn-primary flex-grow-1 justify-content-center">
+              <i class="bi bi-{{ 'pencil-square' if funcion else 'calendar-plus' }}"></i>
+              {{ 'Guardar Cambios' if funcion else 'Programar Función' }}
+            </button>
+            <a href="{{ url_for('admin.funciones') }}" class="cc-btn-outline">Cancelar</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

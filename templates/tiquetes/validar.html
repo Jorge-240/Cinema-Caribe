@@ -1,0 +1,148 @@
+{% extends 'base.html' %}
+{% block title %}Validar Tiquete — Cinema Caribe{% endblock %}
+
+{% block content %}
+<div class="cc-page-header">
+  <div class="container">
+    <h1><i class="bi bi-qr-code-scan me-2" style="color:var(--cc-orange);"></i>Validar <span style="color:var(--cc-orange);">Tiquete</span></h1>
+  </div>
+</div>
+
+<div class="container pb-5">
+  <div class="row justify-content-center">
+    <div class="col-md-6">
+
+      <div class="cc-card mb-4">
+        <h5 class="fw-800 mb-3"><i class="bi bi-search me-2 text-teal"></i>Buscar o Escanear Tiquete</h5>
+        <!-- CAMARA -->
+        <div class="text-center mb-3">
+          <button type="button" class="cc-btn-outline w-100" id="btn-scan-qr">
+            <i class="bi bi-camera me-2"></i>Escanear por Cámara
+          </button>
+        </div>
+        <div id="reader" style="display: none; width: 100%; border-radius: 8px; overflow: hidden; margin-bottom: 20px; background: black;"></div>
+        <!-- /CAMARA -->
+        <form method="POST" action="{{ url_for('tiquetes.validar') }}">
+          <div class="mb-3">
+            <label class="cc-form-label">Código del tiquete (UUID)</label>
+            <input type="text" name="codigo" id="codigo-input"
+                   class="form-control cc-form-control"
+                   placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                   value="{{ request.form.get('codigo', '') }}"
+                   autocomplete="off" required>
+          </div>
+          <div class="d-flex gap-2">
+            <button type="submit" name="accion" value="consultar" class="cc-btn-secondary flex-grow-1">
+              <i class="bi bi-search"></i> Consultar
+            </button>
+            <button type="submit" name="accion" value="usar" class="cc-btn-primary flex-grow-1">
+              <i class="bi bi-check-circle"></i> Marcar Usado
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- RESULTADO -->
+      {% if resultado %}
+      <div class="fade-in-up">
+        {% if resultado.estado == 'valido' %}
+        <div class="cc-validation-box cc-valid-box">
+          <div class="display-2 mb-2">✅</div>
+          <h4 class="text-success fw-800 mb-1">TIQUETE VÁLIDO</h4>
+          <p class="text-muted mb-3">{{ resultado.mensaje }}</p>
+          {% if resultado.tiquete %}
+          <div class="cc-card mt-3 text-start">
+            <div class="fw-800 mb-2">{{ resultado.tiquete.pelicula_titulo }}</div>
+            <div class="small text-muted">
+              <i class="bi bi-person me-1"></i>{{ resultado.tiquete.usuario_nombre }}<br>
+              <i class="bi bi-calendar3 me-1"></i>{{ resultado.tiquete.fecha }} — {{ resultado.tiquete.hora[:5] if resultado.tiquete.hora is string else resultado.tiquete.hora.strftime('%H:%M') }}<br>
+              <i class="bi bi-geo-alt me-1"></i>{{ resultado.tiquete.sala_nombre }}<br>
+              {% if resultado.detalles %}
+              <div class="mt-2 text-teal fw-bold">
+                <i class="bi bi-grid-3x3-gap me-1"></i>Asientos: 
+                  {% for d in resultado.detalles %}
+                    {{ d.asiento_numero }}{{ ", " if not loop.last else "" }}
+                  {% endfor %}
+              </div>
+              {% endif %}
+            </div>
+          </div>
+          {% endif %}
+        </div>
+
+        {% elif resultado.estado == 'usado' %}
+        <div class="cc-validation-box cc-used-box">
+          <div class="display-2 mb-2">⚠️</div>
+          <h4 class="text-secondary fw-800 mb-1">{{ resultado.mensaje }}</h4>
+          {% if resultado.tiquete %}
+          <p class="text-muted small mb-1">
+            <i class="bi bi-film me-1"></i>{{ resultado.tiquete.pelicula_titulo }}<br>
+            <i class="bi bi-person me-1"></i>{{ resultado.tiquete.usuario_nombre }}
+          </p>
+          {% if resultado.detalles %}
+          <div class="small fw-bold" style="color: rgba(255, 255, 255, 0.45);">
+            Asientos:
+            {% for d in resultado.detalles %}
+              {{ d.asiento_numero }}{{ ", " if not loop.last else "" }}
+            {% endfor %}
+          </div>
+          {% endif %}
+          {% endif %}
+        </div>
+
+        {% else %}
+        <div class="cc-validation-box cc-invalid-box">
+          <div class="display-2 mb-2">❌</div>
+          <h4 class="text-danger fw-800 mb-1">{{ resultado.mensaje }}</h4>
+          <p class="text-muted small">Verifica el código e intenta de nuevo.</p>
+        </div>
+        {% endif %}
+      </div>
+      {% endif %}
+
+    </div>
+  </div>
+</div>
+<script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    let html5QrcodeScanner = null;
+
+    document.getElementById('btn-scan-qr').addEventListener('click', function() {
+      let readerEl = document.getElementById('reader');
+      if (readerEl.style.display === 'none') {
+        readerEl.style.display = 'block';
+        this.innerHTML = '<i class="bi bi-camera-video-off me-2"></i>Apagar Cámara';
+        
+        html5QrcodeScanner = new Html5QrcodeScanner("reader", { 
+          fps: 10, 
+          qrbox: {width: 250, height: 250},
+          aspectRatio: 1.0 
+        });
+        
+        html5QrcodeScanner.render(
+          function onScanSuccess(decodedText, decodedResult) {
+            document.getElementById('codigo-input').value = decodedText;
+            html5QrcodeScanner.clear();
+            readerEl.style.display = 'none';
+            document.getElementById('btn-scan-qr').innerHTML = '<i class="bi bi-camera me-2"></i>Escanear de Nuevo';
+            // Al escanear el QR someter el formulario (consulta).
+            document.querySelector('.cc-card form').submit();
+          }, 
+          function onScanError(errorMessage) {
+            // Ignorar frames vacíos.
+          }
+        );
+      } else {
+        if (html5QrcodeScanner) {
+          html5QrcodeScanner.clear();
+        }
+        readerEl.style.display = 'none';
+        this.innerHTML = '<i class="bi bi-camera me-2"></i>Escanear por Cámara';
+      }
+    });
+
+    if(typeof initQrInput === 'function') initQrInput();
+  });
+</script>
+{% endblock %}

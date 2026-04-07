@@ -1,0 +1,98 @@
+{% extends 'base.html' %}
+{% block title %}{{ 'Editar' if pelicula else 'Nueva' }} Película — Admin{% endblock %}
+
+{% block content %}
+<div class="cc-page-header">
+  <div class="container">
+    <nav aria-label="breadcrumb"><ol class="breadcrumb mb-1">
+      <li class="breadcrumb-item"><a href="{{ url_for('admin.dashboard') }}">Admin</a></li>
+      <li class="breadcrumb-item"><a href="{{ url_for('admin.peliculas') }}">Películas</a></li>
+      <li class="breadcrumb-item active">{{ 'Editar' if pelicula else 'Nueva' }}</li>
+    </ol></nav>
+    <h1>{{ 'Editar' if pelicula else 'Nueva' }} <span style="color:var(--cc-orange);">Película</span></h1>
+  </div>
+</div>
+
+<div class="container pb-5">
+  <div class="row justify-content-center">
+    <div class="col-lg-8">
+      <div class="cc-card">
+        <form method="POST">
+          <div class="row g-3">
+            <div class="col-12">
+              <label class="cc-form-label">Título *</label>
+              <input type="text" name="titulo" class="form-control cc-form-control"
+                     value="{{ pelicula.titulo if pelicula else '' }}" required autofocus>
+            </div>
+            <div class="col-12">
+              <label class="cc-form-label">Descripción</label>
+              <textarea name="descripcion" class="form-control cc-form-control" rows="3">{{ pelicula.descripcion if pelicula else '' }}</textarea>
+            </div>
+            <div class="col-md-4">
+              <label class="cc-form-label">Duración (min) *</label>
+              <input type="number" name="duracion" class="form-control cc-form-control"
+                     value="{{ pelicula.duracion if pelicula else 90 }}" min="1" required>
+            </div>
+            <div class="col-md-4">
+              <label class="cc-form-label">Género</label>
+              <input type="text" name="genero" class="form-control cc-form-control"
+                     value="{{ pelicula.genero if pelicula else '' }}" placeholder="Acción, Drama...">
+            </div>
+            <div class="col-md-4">
+              <label class="cc-form-label">Clasificación</label>
+              <select name="clasificacion" class="form-select cc-form-control">
+                {% for c in ['G','PG','PG-13','R','NC-17'] %}
+                <option value="{{ c }}" {{ 'selected' if pelicula and pelicula.clasificacion == c }}>{{ c }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-12">
+              <label class="cc-form-label">URL de Imagen (Póster)</label>
+              <input type="url" name="imagen_url" id="imagen_url" class="form-control cc-form-control"
+                     value="{{ pelicula.imagen_url if pelicula else '' }}"
+                     placeholder="https://..." oninput="previewImg(this.value)">
+              <div class="mt-2" id="img-preview">
+                {% if pelicula and pelicula.imagen_url %}
+                <img src="{{ pelicula.imagen_url }}" style="height:100px;border-radius:8px;">
+                {% endif %}
+              </div>
+            </div>
+            <div class="col-12">
+              <label class="cc-form-label">URL del Trailer (embed YouTube)</label>
+              <input type="url" name="trailer_url" class="form-control cc-form-control"
+                     value="{{ pelicula.trailer_url if pelicula else '' }}"
+                     placeholder="https://www.youtube.com/embed/...">
+            </div>
+            <div class="col-md-4">
+              <label class="cc-form-label">Estado</label>
+              <select name="estado" class="form-select cc-form-control">
+                <option value="activa" {{ 'selected' if not pelicula or pelicula.estado == 'activa' }}>Activa</option>
+                <option value="inactiva" {{ 'selected' if pelicula and pelicula.estado == 'inactiva' }}>Inactiva</option>
+              </select>
+            </div>
+          </div>
+
+          <hr class="cc-separator">
+          <div class="d-flex gap-3">
+            <button type="submit" class="cc-btn-primary flex-grow-1 justify-content-center">
+              <i class="bi bi-{{ 'floppy' if pelicula else 'plus-circle' }}"></i>
+              {{ 'Guardar Cambios' if pelicula else 'Crear Película' }}
+            </button>
+            <a href="{{ url_for('admin.peliculas') }}" class="cc-btn-outline">Cancelar</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+function previewImg(url) {
+  const div = document.getElementById('img-preview');
+  if (url) {
+    div.innerHTML = `<img src="${url}" style="height:100px;border-radius:8px;" onerror="this.remove()">`;
+  } else {
+    div.innerHTML = '';
+  }
+}
+</script>
+{% endblock %}

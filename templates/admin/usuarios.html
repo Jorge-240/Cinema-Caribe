@@ -1,0 +1,106 @@
+{% extends 'base.html' %}
+{% block title %}Usuarios — Admin Cinema Caribe{% endblock %}
+
+{% block content %}
+<div class="cc-page-header">
+  <div class="container">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <div>
+        <nav aria-label="breadcrumb"><ol class="breadcrumb mb-1">
+          <li class="breadcrumb-item"><a href="{{ url_for('admin.dashboard') }}">Admin</a></li>
+          <li class="breadcrumb-item active">Usuarios</li>
+        </ol></nav>
+        <h1><i class="bi bi-people me-2" style="color:var(--cc-orange);"></i>Gestión de <span style="color:var(--cc-orange);">Usuarios</span></h1>
+      </div>
+      <div>
+        <button type="button" class="cc-btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#newStaffModal">
+          <i class="bi bi-person-plus me-1"></i>Nuevo Personal
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="container pb-5">
+  {% if usuarios %}
+  <div class="table-responsive cc-card">
+    <table class="cc-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Nombre</th>
+          <th>Email</th>
+          <th>Rol</th>
+          <th>Registro</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in usuarios %}
+        <tr class="fade-in-up">
+          <td class="text-muted">{{ u.id }}</td>
+          <td class="fw-700">
+            <i class="bi bi-person-circle me-2 text-teal"></i>{{ u.nombre }}
+          </td>
+          <td class="text-muted">{{ u.email }}</td>
+          <td>
+            <span class="cc-badge {{ 'cc-badge-valido' if u.rol == 'admin' else 'cc-badge-usado' }}">
+              <i class="bi bi-{{ 'shield-check' if u.rol == 'admin' else 'person' }} me-1"></i>
+              {{ u.rol | upper }}
+            </span>
+          </td>
+          <td class="text-muted small">
+            {{ u.fecha_creacion.strftime('%d %b %Y, %H:%M') if u.fecha_creacion else '—' }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="text-center py-5 cc-card">
+    <i class="bi bi-people display-1 opacity-10"></i>
+    <h4 class="text-muted mt-3">No hay usuarios registrados.</h4>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Modal Nuevo Personal -->
+<div class="modal fade" id="newStaffModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="background:var(--cc-dark2);border:1px solid rgba(10,126,140,.4);">
+      <div class="modal-header border-0">
+        <h5 class="modal-title fw-800 text-white"><i class="bi bi-person-add me-2 text-teal"></i>Nuevo Personal</h5>
+        <button class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="POST">
+        <div class="modal-body py-2">
+          <div class="mb-3">
+            <label class="cc-form-label">Nombre del empleado *</label>
+            <input type="text" name="nombre" class="form-control cc-form-control" autocomplete="off" required>
+          </div>
+          <div class="mb-3">
+            <label class="cc-form-label">Correo electrónico *</label>
+            <input type="email" name="email" class="form-control cc-form-control" autocomplete="off" required>
+          </div>
+          <div class="mb-3">
+            <label class="cc-form-label">Contraseña *</label>
+            <input type="password" name="password" class="form-control cc-form-control" required>
+          </div>
+          <div class="mb-3">
+            <label class="cc-form-label">Rol Asignado *</label>
+            <select name="rol" class="form-select cc-form-control" required>
+              <option value="taquilla">Taquilla (Soporte en Caja)</option>
+              <option value="validador">Validador (Lector de Entradas)</option>
+              <option value="admin">Administrador (Acceso Total)</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer border-0 justify-content-center gap-3">
+          <button type="button" class="cc-btn-outline" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="cc-btn-primary"><i class="bi bi-check-circle"></i> Crear Usuario</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

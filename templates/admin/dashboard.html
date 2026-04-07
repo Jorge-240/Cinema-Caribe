@@ -1,0 +1,157 @@
+{% extends 'base.html' %}
+{% block title %}Panel Admin — Cinema Caribe{% endblock %}
+
+{% block content %}
+<div class="cc-page-header">
+  <div class="container">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <h1><i class="bi bi-speedometer2 me-2" style="color:var(--cc-orange);"></i>Panel <span style="color:var(--cc-orange);">Admin</span></h1>
+      {% if usuario_rol == 'admin' %}
+      <div class="d-flex gap-2">
+        <a href="{{ url_for('admin.nueva_pelicula') }}" class="cc-btn-primary btn-sm">
+          <i class="bi bi-plus-circle"></i> Película
+        </a>
+        <a href="{{ url_for('admin.nueva_funcion') }}" class="cc-btn-secondary btn-sm">
+          <i class="bi bi-plus-circle"></i> Función
+        </a>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="container pb-5">
+
+  <!-- ── STATS ── -->
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-lg-3 fade-in-up delay-1">
+      <a href="{{ url_for('admin.historial_tiquetes') }}" class="text-decoration-none">
+        <div class="cc-stat-card" style="cursor:pointer;transition:0.3s;hover:transform:translateY(-2px);">
+          <div class="cc-stat-number">{{ stats.total_tiquetes or 0 }}</div>
+          <div class="cc-stat-label"><i class="bi bi-ticket-perforated me-1"></i>Tiquetes</div>
+        </div>
+      </a>
+    </div>
+    <div class="col-6 col-lg-3 fade-in-up delay-2">
+      <div class="cc-stat-card">
+        <div class="cc-stat-number" style="font-size:1.8rem;">
+          ${{ '{:,.0f}'.format(stats.ingresos_totales or 0) }}
+        </div>
+        <div class="cc-stat-label"><i class="bi bi-cash-stack me-1"></i>Ingresos COP</div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-3 fade-in-up delay-3">
+      <a href="{{ url_for('admin.historial_tiquetes') }}" class="text-decoration-none">
+        <div class="cc-stat-card" style="cursor:pointer;transition:0.3s;hover:transform:translateY(-2px);">
+          <div class="cc-stat-number" style="color:#10b981;">{{ stats.validos or 0 }}</div>
+          <div class="cc-stat-label"><i class="bi bi-check-circle me-1"></i>Válidos</div>
+        </div>
+      </a>
+    </div>
+    <div class="col-6 col-lg-3 fade-in-up delay-4">
+      <div class="cc-stat-card">
+        <div class="cc-stat-number" style="color:#9ca3af;">{{ stats.usados or 0 }}</div>
+        <div class="cc-stat-label"><i class="bi bi-dash-circle me-1"></i>Usados</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-4">
+    <!-- ── FUNCIONES STATS ── -->
+    <div class="col-lg-8">
+      <div class="cc-card">
+        <h5 class="fw-800 mb-3"><i class="bi bi-calendar-event me-2 text-teal"></i>Ocupación por Función</h5>
+        {% if funciones %}
+        <div class="table-responsive">
+          <table class="cc-table">
+            <thead>
+              <tr>
+                <th>Película</th>
+                <th>Fecha</th>
+                <th>Hora</th>
+                <th>Ocupación</th>
+                <th>Ingresos</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for f in funciones %}
+              <tr>
+                <td class="fw-700">{{ f.pelicula }}</td>
+                <td class="text-muted">{{ f.fecha }}</td>
+                <td>{{ f.hora[:5] if f.hora is string else f.hora.strftime('%H:%M') }}</td>
+                <td>
+                  <div class="d-flex align-items-center gap-2">
+                    <div class="cc-progress flex-grow-1" style="min-width:80px;">
+                      <div class="cc-progress-bar"
+                           style="width:{{ (f.ocupados / f.total_asientos * 100)|round|int if f.total_asientos else 0 }}%">
+                      </div>
+                    </div>
+                    <span class="small fw-700">{{ f.ocupados }}/{{ f.total_asientos }}</span>
+                  </div>
+                </td>
+                <td class="text-gold fw-700">${{ '{:,.0f}'.format(f.ingresos or 0) }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <p class="text-muted text-center py-3">No hay funciones registradas.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- ── TOP PELÍCULAS ── -->
+    <div class="col-lg-4">
+      <div class="cc-card">
+        <h5 class="fw-800 mb-3"><i class="bi bi-trophy me-2 text-gold"></i>Más Vistas</h5>
+        {% if top_peliculas %}
+        {% for p in top_peliculas %}
+        <div class="d-flex align-items-center gap-3 mb-3 p-2 rounded-3"
+             style="background:rgba(10,126,140,.08);">
+          <span class="fw-800 text-gold" style="width:24px;flex-shrink:0;">{{ loop.index }}</span>
+          <img src="{{ p.imagen_url }}" width="40" height="55"
+               style="object-fit:cover;border-radius:6px;flex-shrink:0;">
+          <div class="flex-grow-1 min-w-0">
+            <div class="fw-700 small text-truncate">{{ p.titulo }}</div>
+            <div class="text-muted" style="font-size:.75rem;">{{ p.total_tiquetes or 0 }} tiquetes</div>
+          </div>
+        </div>
+        {% endfor %}
+        {% else %}
+        <p class="text-muted text-center py-3">Sin datos aún.</p>
+        {% endif %}
+      </div>
+
+      <!-- Quick links -->
+      {% if usuario_rol == 'admin' %}
+      <div class="cc-card mt-3">
+        <h6 class="fw-800 mb-3 text-teal">Acciones rápidas</h6>
+        <div class="d-flex flex-column gap-2">
+          <a href="{{ url_for('admin.peliculas') }}" class="cc-btn-outline btn-sm justify-content-start">
+            <i class="bi bi-film me-2"></i>Gestionar Películas
+          </a>
+          <a href="{{ url_for('admin.funciones') }}" class="cc-btn-outline btn-sm justify-content-start">
+            <i class="bi bi-calendar-event me-2"></i>Gestionar Funciones
+          </a>
+          <a href="{{ url_for('admin.usuarios') }}" class="cc-btn-outline btn-sm justify-content-start">
+            <i class="bi bi-people me-2"></i>Ver Usuarios
+          </a>
+          <a href="{{ url_for('tiquetes.validar') }}" class="cc-btn-outline btn-sm justify-content-start">
+            <i class="bi bi-qr-code-scan me-2"></i>Validar Tiquetes
+          </a>
+        </div>
+      </div>
+      {% elif usuario_rol == 'validador' %}
+      <div class="cc-card mt-3">
+        <h6 class="fw-800 mb-3 text-teal">Tu Panel</h6>
+        <p class="text-muted small mb-3">Tu función es validar los tiquetes de entrada. Presiona el botón abajo para comenzar.</p>
+        <a href="{{ url_for('tiquetes.validar') }}" class="cc-btn-primary btn-sm w-100 justify-content-center">
+          <i class="bi bi-qr-code-scan me-2"></i>Ir a Validar Tiquetes
+        </a>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

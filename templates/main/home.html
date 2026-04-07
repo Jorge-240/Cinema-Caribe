@@ -1,0 +1,146 @@
+{% extends 'base.html' %}
+{% block title %}Cinema Caribe — Cartelera{% endblock %}
+
+{% block content %}
+
+<!-- ══════════ HERO ══════════ -->
+<section class="cc-hero">
+  <div class="cc-hero-bg"></div>
+
+  <div class="container text-center position-relative" style="z-index:2;">
+    <img src="{{ url_for('static', filename='img/logo.png') }}"
+         alt="Cinema Caribe" class="cc-hero-logo mb-4 fade-in-up">
+    <p class="cc-hero-tagline fade-in-up delay-2">Cine Clásico y Calidez Tropical</p>
+    <div class="d-flex gap-3 justify-content-center flex-wrap mt-4 fade-in-up delay-3">
+      <a href="#cartelera" class="cc-btn-primary">
+        <i class="bi bi-film"></i> Ver Cartelera
+      </a>
+    </div>
+  </div>
+
+  <!-- Floating stars -->
+  <div style="position:absolute;top:15%;left:8%;font-size:1.5rem;opacity:.4;animation:hero-float 5s ease-in-out infinite;">⭐</div>
+  <div style="position:absolute;top:30%;right:10%;font-size:1rem;opacity:.3;animation:hero-float 7s ease-in-out infinite reverse;">🌟</div>
+  <div style="position:absolute;bottom:25%;left:15%;font-size:1.2rem;opacity:.25;animation:hero-float 4s ease-in-out infinite;">✨</div>
+
+  <!-- Waves -->
+  <div class="cc-waves">
+    <svg viewBox="0 0 1440 80" xmlns="http://www.w3.org/2000/svg">
+      <path class="wave1" fill="rgba(10,126,140,0.25)"
+        d="M0,40 C240,80 480,0 720,40 C960,80 1200,0 1440,40 L1440,80 L0,80 Z"/>
+      <path class="wave2" fill="rgba(10,126,140,0.15)" transform="translate(0,10)"
+        d="M0,40 C200,10 440,70 720,40 C1000,10 1240,70 1440,40 L1440,80 L0,80 Z"/>
+    </svg>
+  </div>
+
+  <div class="cc-hero-scroll"><i class="bi bi-chevron-double-down"></i></div>
+</section>
+
+<!-- ══════════ CARTELERA ══════════ -->
+<section id="cartelera" class="py-5">
+  <div class="container">
+    <div class="text-center mb-5 reveal">
+      <div class="cc-divider"></div>
+      <h2 class="cc-section-title">En <span>Cartelera</span></h2>
+      <p class="text-muted mt-2">Selecciona una película y elige tu función</p>
+    </div>
+
+    {% if peliculas %}
+    <div class="row g-4">
+      {% for p in peliculas %}
+      <div class="col-6 col-md-4 col-lg-3 col-xl-2 reveal delay-{{ loop.index % 4 + 1 }}">
+        <a href="{{ url_for('main.detalle_pelicula', pid=p.id) }}"
+           class="cc-movie-card d-block text-decoration-none">
+          <div class="cc-movie-poster">
+            <img src="{{ p.imagen_url or url_for('static', filename='img/no-poster.png') }}"
+                 alt="{{ p.titulo }}" loading="lazy">
+            <div class="cc-badge-rating">{{ p.clasificacion }}</div>
+            <div class="cc-movie-overlay">
+              <span class="cc-btn-primary btn-sm w-100 justify-content-center">
+                <i class="bi bi-ticket-perforated"></i> Comprar
+              </span>
+            </div>
+          </div>
+          <div class="cc-movie-info">
+            <div class="cc-movie-title">{{ p.titulo }}</div>
+            <div class="cc-movie-meta">
+              <span><i class="bi bi-clock me-1"></i>{{ p.duracion }} min</span>
+            </div>
+            <span class="cc-movie-genre">{{ p.genero }}</span>
+          </div>
+        </a>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-center py-5">
+      <i class="bi bi-film display-1 text-muted opacity-25"></i>
+      <p class="text-muted mt-3">No hay películas en cartelera actualmente.</p>
+    </div>
+    {% endif %}
+  </div>
+</section>
+
+<!-- ══════════ PRÓXIMAS FUNCIONES ══════════ -->
+{% if funciones_hoy %}
+<section class="py-5" style="background:rgba(10,126,140,.05);">
+  <div class="container">
+    <div class="text-center mb-4">
+      <div class="cc-divider"></div>
+      <h2 class="cc-section-title">Próximas <span>Funciones</span></h2>
+    </div>
+    <div class="row g-3">
+      {% for f in funciones_hoy[:6] %}
+      <div class="col-md-6 col-lg-4 reveal">
+        <a href="{{ url_for('tiquetes.seleccionar_asientos', funcion_id=f.id) }}"
+           class="cc-funcion-card">
+          <div class="d-flex align-items-center gap-3">
+            <img src="{{ f.imagen_url }}" alt="{{ f.pelicula_titulo }}"
+                 width="60" height="80" style="object-fit:cover;border-radius:8px;">
+            <div class="flex-grow-1 min-w-0">
+              <div class="fw-800 text-white text-truncate">{{ f.pelicula_titulo }}</div>
+              <div class="cc-funcion-hora">{{ f.hora.strftime('%H:%M') if f.hora.__class__.__name__ == 'time' else f.hora[:5] }}</div>
+              <div class="d-flex justify-content-between align-items-center mt-1">
+                <small class="text-muted">{{ f.fecha }}</small>
+                <span class="cc-funcion-precio">
+                  ${{ '{:,.0f}'.format(f.precio) }}
+                </span>
+              </div>
+            </div>
+          </div>
+        </a>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endif %}
+
+<!-- ══════════ SOBRE NOSOTROS ══════════ -->
+<section class="py-5 text-center">
+  <div class="container">
+    <div class="cc-card" style="max-width:800px;margin:0 auto;background:rgba(10,126,140,.05);">
+      <i class="bi bi-camera-reels display-4 text-teal mb-3 d-block"></i>
+      <h4 class="fw-800">La Mejor Experiencia Cinematográfica</h4>
+      <p class="text-muted" style="line-height:1.7;">
+        En <strong class="text-teal">Cinema Caribe</strong> nos enorgullece ofrecerte el mejor clima, las mejores instalaciones y una experiencia inolvidable. Contamos con salas equipadas con sonido Dolby Atmos y pantallas 4K para brindarte inmersión total. ¡Ven y disfruta de tu película favorita con nuestra exclusiva selección de snacks tropicales!
+      </p>
+      <div class="d-flex justify-content-center gap-4 mt-4">
+         <div class="text-center">
+            <i class="bi bi-stars fs-3 text-gold"></i>
+            <div class="small fw-700 mt-2">Salas 4K</div>
+         </div>
+         <div class="text-center">
+            <i class="bi bi-badge-hd fs-3 text-gold"></i>
+            <div class="small fw-700 mt-2">Sonido Dolby</div>
+         </div>
+         <div class="text-center">
+            <i class="bi bi-cup-straw fs-3 text-gold"></i>
+            <div class="small fw-700 mt-2">Snacks</div>
+         </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+{% endblock %}

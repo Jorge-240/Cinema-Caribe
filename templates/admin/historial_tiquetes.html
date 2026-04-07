@@ -1,0 +1,264 @@
+{% extends 'base.html' %}
+{% block title %}Historial de Tiquetes — Cinema Caribe{% endblock %}
+
+{% block extra_css %}
+<style>
+  @media print {
+    body {
+      margin: 0;
+      padding: 0;
+    }
+    .cc-page-header, .no-print, .navbar, .cc-navbar {
+      display: none !important;
+    }
+    .cc-card {
+      box-shadow: none;
+      border: none;
+      page-break-inside: avoid;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="cc-page-header">
+  <div class="container">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <h1><i class="bi bi-ticket-perforated me-2" style="color:var(--cc-orange);"></i>Historial de <span style="color:var(--cc-orange);">Tiquetes</span></h1>
+      <a href="{{ url_for('admin.dashboard') }}" class="cc-btn-outline btn-sm">
+        <i class="bi bi-arrow-left me-1"></i> Volver
+      </a>
+    </div>
+  </div>
+</div>
+
+<div class="container pb-5">
+  <!-- FILTROS Y OPCIONES -->
+  <div class="row g-3 mb-4">
+    <div class="col-md-6">
+      <div class="cc-card">
+        <h6 class="fw-800 mb-3">Filtrar</h6>
+        <div class="d-flex gap-2 flex-wrap">
+          <button class="cc-btn-outline btn-sm" onclick="filterByStatus('todos')">Todos ({{ tiquetes|length }})</button>
+          <button class="cc-btn-outline btn-sm" onclick="filterByStatus('valido')">Válidos</button>
+          <button class="cc-btn-outline btn-sm" onclick="filterByStatus('usado')">Usados</button>
+          <button class="cc-btn-outline btn-sm" onclick="filterByStatus('anulado')">Anulados</button>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6 no-print">
+      <div class="cc-card">
+        <h6 class="fw-800 mb-3">Acciones</h6>
+        <div class="d-flex gap-2">
+          <button class="cc-btn-primary btn-sm" onclick="window.print()">
+            <i class="bi bi-printer me-1"></i> Imprimir Todo
+          </button>
+          <button class="cc-btn-secondary btn-sm" onclick="window.location.href='{{ url_for('admin.dashboard') }}'">
+            <i class="bi bi-x-circle me-1"></i> Cerrar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TABLA DE TIQUETES -->
+  <div class="cc-card">
+    {% if tiquetes %}
+    <div class="table-responsive">
+      <table class="cc-table" id="tiquetes-table">
+        <thead>
+          <tr>
+            <th>Código</th>
+            <th>Cliente</th>
+            <th>Película</th>
+            <th>Fecha/Hora</th>
+            <th>Total</th>
+            <th>Estado</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for t in tiquetes %}
+          <tr class="tiquete-row" data-estado="{{ t.estado }}">
+            <td>
+              <code class="small text-teal fw-700">{{ t.codigo[:12] }}...</code>
+            </td>
+            <td>
+              <div class="fw-700 small">{{ t.nombre_cliente if t.nombre_cliente else t.usuario_nombre }}</div>
+              <div class="text-muted" style="font-size:.75rem;">{{ t.usuario_nombre }}</div>
+            </td>
+            <td class="small">{{ t.pelicula_titulo }}</td>
+            <td class="text-muted small">
+              {{ t.fecha.strftime('%d/%m/%Y') if t.fecha.__class__.__name__ == 'date' else t.fecha }}<br>
+              {{ t.hora[:5] if t.hora is string else t.hora.strftime('%H:%M') }}
+            </td>
+            <td class="fw-700 text-gold">${{ '{:,.0f}'.format(t.total) }}</td>
+            <td>
+              <span class="cc-badge cc-badge-{{ t.estado }}">
+                <i class="bi bi-{{ 'check-circle' if t.estado == 'valido' else 'x-circle' if t.estado == 'anulado' else 'dash-circle' }} me-1"></i>
+                {{ t.estado | upper }}
+              </span>
+            </td>
+            <td class="no-print">
+              <a href="{{ url_for('tiquetes.detalle', tiquete_id=t.id) }}" class="cc-btn-outline btn-sm" target="_blank">
+                <i class="bi bi-eye"></i> Ver
+              </a>
+              <button class="cc-btn-primary btn-sm" onclick="printTiquete({{ t.id }}, '{{ t.codigo }}', '{{ t.nombre_cliente if t.nombre_cliente else t.usuario_nombre }}', '{{ t.pelicula_titulo }}', '{{ t.fecha }}', '{{ t.hora }}', {{ t.total }})">
+                <i class="bi bi-printer"></i> Imprimir
+              </button>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="text-muted text-center py-4">No hay tiquetes registrados.</p>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Modal para imprimir individual -->
+<div class="modal fade" id="modalPrint" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content" style="background:var(--cc-dark1);border-color:rgba(10,126,140,.3);">
+      <div class="modal-body p-4" id="print-content" style="display:none;"></div>
+      <div class="modal-footer no-print">
+        <button type="button" class="cc-btn-outline btn-sm" data-bs-dismiss="modal">Cerrar</button>
+        <button type="button" class="cc-btn-primary btn-sm" onclick="document.getElementById('print-content').parentElement.print()">
+          <i class="bi bi-printer me-1"></i> Imprimir
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  function filterByStatus(status) {
+    const rows = document.querySelectorAll('.tiquete-row');
+    rows.forEach(row => {
+      if (status === 'todos' || row.dataset.estado === status) {
+        row.style.display = '';
+      } else {
+        row.style.display = 'none';
+      }
+    });
+  }
+
+  function printTiquete(id, codigo, cliente, pelicula, fecha, hora, total) {
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Tiquete #${codigo}</title>
+          <style>
+            body {
+              font-family: 'Nunito', sans-serif;
+              max-width: 400px;
+              margin: 0 auto;
+              padding: 20px;
+              background: #0a1f23;
+              color: #ddd;
+            }
+            .ticket-header {
+              text-align: center;
+              margin-bottom: 20px;
+              border-bottom: 2px solid #0a7e8c;
+              padding-bottom: 15px;
+            }
+            .ticket-header h2 {
+              margin: 0;
+              color: #f59e0b;
+              font-size: 24px;
+            }
+            .ticket-body {
+              margin: 20px 0;
+            }
+            .row {
+              display: flex;
+              justify-content: space-between;
+              margin: 10px 0;
+              padding: 8px 0;
+              border-bottom: 1px dashed rgba(10, 126, 140, 0.3);
+            }
+            .label {
+              font-weight: bold;
+              color: #10b981;
+            }
+            .value {
+              text-align: right;
+            }
+            .total-row {
+              font-size: 18px;
+              font-weight: bold;
+              color: #f59e0b;
+              margin-top: 15px;
+              border-top: 2px solid #f59e0b;
+              padding-top: 10px;
+            }
+            .code {
+              text-align: center;
+              margin-top: 20px;
+              font-family: monospace;
+              color: #0a7e8c;
+              word-break: break-all;
+            }
+            @media print {
+              body { margin: 0; padding: 0; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="ticket-header">
+            <h2>🎬 Cinema Caribe</h2>
+            <p>Tiquete de Entrada</p>
+          </div>
+          <div class="ticket-body">
+            <div class="row">
+              <span class="label">Película:</span>
+              <span class="value">${pelicula}</span>
+            </div>
+            <div class="row">
+              <span class="label">Cliente:</span>
+              <span class="value">${cliente}</span>
+            </div>
+            <div class="row">
+              <span class="label">Fecha:</span>
+              <span class="value">${fecha.substring(0, 10)}</span>
+            </div>
+            <div class="row">
+              <span class="label">Hora:</span>
+              <span class="value">${hora.substring(0, 5)}</span>
+            </div>
+            <div class="row total-row">
+              <span>TOTAL PAGADO:</span>
+              <span>$${total.toLocaleString('es-CO')}</span>
+            </div>
+            <div class="code">
+              <p>Código: ${codigo}</p>
+              <p style="font-size: 12px; margin-top: 20px;">Presente este tiquete en la entrada</p>
+            </div>
+          </div>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.print();
+  }
+</script>
+
+<style>
+  .cc-badge-valido {
+    background: rgba(16, 185, 129, 0.2) !important;
+    color: #10b981 !important;
+  }
+  .cc-badge-usado {
+    background: rgba(156, 163, 175, 0.2) !important;
+    color: #9ca3af !important;
+  }
+  .cc-badge-anulado {
+    background: rgba(239, 68, 68, 0.2) !important;
+    color: #ef4444 !important;
+  }
+</style>
+{% endblock %}

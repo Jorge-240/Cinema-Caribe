@@ -1,0 +1,299 @@
+{% extends 'base.html' %}
+{% block title %}Seleccionar Asientos — Cinema Caribe{% endblock %}
+
+{% block extra_css %}
+<style>
+  .cc-summary-panel {
+    position: sticky;
+    top: 80px;
+    background: var(--cc-dark2);
+    border: 1px solid rgba(10,126,140,.3);
+    border-radius: var(--cc-radius-lg);
+    padding: 1.5rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div class="cc-page-header">
+  <div class="container">
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb mb-1">
+        <li class="breadcrumb-item"><a href="{{ url_for('main.home') }}">Cartelera</a></li>
+        <li class="breadcrumb-item"><a href="{{ url_for('main.detalle_pelicula', pid=funcion.pelicula_id) }}">{{ funcion.pelicula_titulo }}</a></li>
+        <li class="breadcrumb-item active">Seleccionar Asientos</li>
+      </ol>
+    </nav>
+    <h1>Seleccionar <span style="color:var(--cc-orange);">Asientos</span></h1>
+  </div>
+</div>
+
+<div class="container pb-5">
+  <div class="row g-4">
+
+    <!-- ══════ SEAT GRID ══════ -->
+    <div class="col-lg-8">
+      <!-- Movie info banner -->
+      <div class="cc-card mb-4">
+        <div class="d-flex gap-3 align-items-center">
+          <img src="{{ funcion.imagen_url }}" alt="{{ funcion.pelicula_titulo }}"
+               width="70" height="95" style="object-fit:cover;border-radius:8px;flex-shrink:0;">
+          <div>
+            <h5 class="mb-1 fw-800">{{ funcion.pelicula_titulo }}</h5>
+            <div class="d-flex gap-3 text-muted flex-wrap" style="font-size:.85rem;">
+              <span><i class="bi bi-calendar3 me-1"></i>
+                {{ funcion.fecha.strftime('%d de %B, %Y') if funcion.fecha.__class__.__name__ == 'date' else funcion.fecha }}
+              </span>
+              <span><i class="bi bi-clock me-1"></i>
+                {{ funcion.hora[:5] if funcion.hora is string else funcion.hora.strftime('%H:%M') }}
+              </span>
+              <span><i class="bi bi-geo-alt me-1"></i>{{ funcion.sala_nombre }}</span>
+              <span class="badge bg-warning text-dark">{{ funcion.clasificacion }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Seat map -->
+      <div class="cc-seat-container">
+        <!-- Screen -->
+        <div class="cc-screen">🎬 PANTALLA</div>
+
+        <!-- Grid -->
+        {% for fila in filas_ordenadas %}
+        <div class="cc-seat-row">
+          <span class="cc-seat-label">{{ fila }}</span>
+          {% for asiento in grid[fila] %}
+            {% if loop.index == 8 %}
+            <!-- pasillo central -->
+            <div class="cc-seat pasillo"></div>
+            {% endif %}
+            <button
+              class="cc-seat {{ asiento.estado }}"
+              data-id="{{ asiento.id }}"
+              data-numero="{{ asiento.numero }}"
+              title="{{ asiento.numero }} — {{ asiento.estado | capitalize }}"
+              {% if asiento.estado == 'ocupado' %}disabled{% endif %}
+            >
+              {{ loop.index }}
+            </button>
+          {% endfor %}
+          <span class="cc-seat-label">{{ fila }}</span>
+        </div>
+        {% endfor %}
+
+        <!-- Legend -->
+        <div class="cc-legend">
+          <div class="cc-legend-item">
+            <div class="cc-legend-dot" style="background:linear-gradient(160deg,#1e5c62,#0a7e8c);"></div>
+            Disponible
+          </div>
+          <div class="cc-legend-item">
+            <div class="cc-legend-dot" style="background:linear-gradient(160deg,var(--cc-orange),var(--cc-orange-gold));"></div>
+            Seleccionado
+          </div>
+          <div class="cc-legend-item">
+            <div class="cc-legend-dot" style="background:#2a3a3d;opacity:.5;"></div>
+            Ocupado
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════ SUMMARY PANEL ══════ -->
+    <div class="col-lg-4">
+      <div class="cc-summary-panel">
+        <h5 class="fw-800 mb-3" style="color:var(--cc-teal-light);">
+          <i class="bi bi-receipt me-2"></i>Resumen de Compra
+        </h5>
+        <hr class="cc-separator">
+
+        <div class="d-flex justify-content-between mb-2">
+          <span class="text-muted small">Precio por asiento</span>
+          <span class="fw-700">${{ '{:,.0f}'.format(funcion.precio) }}</span>
+        </div>
+        <div class="d-flex justify-content-between mb-2">
+          <span class="text-muted small">Asientos seleccionados</span>
+          <span class="fw-700" id="seat-count">0</span>
+        </div>
+        <div id="selected-seats-display" class="mb-3">
+          <small class="text-muted">Asientos: <span id="selected-seats-list" class="text-teal fw-700">—</span></small>
+        </div>
+        <hr class="cc-separator">
+        <div class="d-flex justify-content-between mb-4">
+          <span class="fw-800 text-white">TOTAL</span>
+          <span class="fw-800 text-gold fs-5" id="seat-total">$0</span>
+        </div>
+
+        <form method="POST" action="{{ url_for('tiquetes.comprar') }}" id="form-compra">
+          <input type="hidden" name="funcion_id" value="{{ funcion.id }}">
+          <div id="hidden-asientos"></div>
+          
+          <!-- Campo nombre cliente (opcional) -->
+          <div class="mb-3">
+            <label for="nombre_cliente" class="form-label text-muted small">Nombre del Cliente (Opcional)</label>
+            <input type="text" class="form-control cc-input" id="nombre_cliente" name="nombre_cliente" 
+                   placeholder="Nombre para la factura" style="background:rgba(10,126,140,.1);border-color:rgba(10,126,140,.3);">
+          </div>
+          
+          <button type="submit" id="btn-compra" class="cc-btn-primary w-100 justify-content-center py-3 mb-3" disabled>
+            Selecciona asientos
+          </button>
+        </form>
+
+        <a href="{{ url_for('main.detalle_pelicula', pid=funcion.pelicula_id) }}"
+           class="cc-btn-outline w-100 justify-content-center btn-sm">
+          <i class="bi bi-arrow-left"></i> Cambiar función
+        </a>
+
+        <!-- Availability bar -->
+        {% set total = namespace(n=0) %}
+        {% set ocup  = namespace(n=0) %}
+        {% for fila in filas_ordenadas %}
+          {% for a in grid[fila] %}
+            {% set total.n = total.n + 1 %}
+            {% if a.estado == 'ocupado' %}{% set ocup.n = ocup.n + 1 %}{% endif %}
+          {% endfor %}
+        {% endfor %}
+        <hr class="cc-separator">
+        <div class="mt-2">
+          <div class="d-flex justify-content-between small text-muted mb-1">
+            <span>Ocupación de la sala</span>
+            <span>{{ ocup.n }}/{{ total.n }}</span>
+          </div>
+          <div class="cc-progress">
+            <div class="cc-progress-bar" style="width:{{ (ocup.n / total.n * 100)|round|int if total.n else 0 }}%"></div>
+          </div>
+          <small class="text-muted">{{ total.n - ocup.n }} asientos disponibles</small>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Confirm modal / POS -->
+<div class="modal fade" id="confirmModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content" style="background:var(--cc-dark2);border:1px solid rgba(10,126,140,.4);">
+      <div class="modal-header border-0">
+        <h5 class="modal-title fw-800 text-white">
+          {% if session.get('rol') == 'taquilla' %}<i class="bi bi-cash-coin me-2 text-gold"></i>Registro de Venta{% else %}Confirmar Compra{% endif %}
+        </h5>
+        <button class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body text-center py-4">
+        {% if session.get('rol') != 'taquilla' %}
+        <i class="bi bi-ticket-perforated display-3 text-orange mb-3 d-block"></i>
+        <p class="text-muted">Estás a punto de comprar <strong class="text-white" id="confirm-count"></strong>
+           asiento(s) por un total de <strong class="text-gold" id="confirm-total"></strong>.</p>
+        <p class="small text-muted">Asientos: <span id="confirm-seats" class="text-teal"></span></p>
+        {% else %}
+        <!-- Taquilla POS Body -->
+        <h3 class="text-gold mb-1" id="confirm-total-taquilla"></h3>
+        <p class="small text-muted mb-4">Total por <span id="confirm-count-taquilla"></span> asiento(s) (<span class="text-teal" id="confirm-seats-taquilla"></span>)</p>
+        
+        <div class="mb-3 text-start px-2">
+          <label class="cc-form-label">Dinero Recibido</label>
+          <div class="input-group">
+            <span class="input-group-text bg-dark2 text-white border-0">$</span>
+            <input type="number" id="dinero_recibido" class="form-control cc-form-control text-end" placeholder="0" min="0" autocomplete="off">
+          </div>
+        </div>
+        <div class="text-start p-3 rounded-3 mx-2" style="background:rgba(255,255,255,0.05);">
+          <div class="d-flex justify-content-between text-muted align-items-center">
+            <span class="small">Cambio (Devuelta):</span>
+            <span class="fw-bold fs-4" id="cambio_devolver">$0</span>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+      <div class="modal-footer border-0 justify-content-center gap-3">
+        <button class="cc-btn-outline" data-bs-dismiss="modal">Cancelar</button>
+        <button class="cc-btn-primary" id="btn-confirm-buy">
+          <i class="bi bi-credit-card me-1"></i> {% if session.get('rol') == 'taquilla' %}Cobrar e Imprimir{% else %}Confirmar y Pagar{% endif %}
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  SeatSelection.init({{ funcion.precio }});
+
+  {% if session.get('rol') == 'taquilla' %}
+  let rawTotal = 0;
+  document.getElementById('form-compra').addEventListener('submit', function(e) {
+    const count = parseInt(document.getElementById('seat-count').textContent);
+    if (count === 0) { e.preventDefault(); return; }
+    e.preventDefault();
+    rawTotal = count * {{ funcion.precio }};
+    document.getElementById('confirm-count-taquilla').textContent = count;
+    document.getElementById('confirm-total-taquilla').textContent = document.getElementById('seat-total').textContent;
+    document.getElementById('confirm-seats-taquilla').textContent = document.getElementById('selected-seats-list').textContent;
+    
+    document.getElementById('dinero_recibido').value = '';
+    document.getElementById('cambio_devolver').textContent = '$0';
+    document.getElementById('cambio_devolver').style.color = 'var(--cc-muted)';
+    document.getElementById('btn-confirm-buy').disabled = true;
+
+    const modal = new bootstrap.Modal(document.getElementById('confirmModal'));
+    modal.show();
+    
+    document.getElementById('btn-confirm-buy').onclick = () => {
+      let hiddenRecibido = document.createElement('input');
+      hiddenRecibido.type = 'hidden';
+      hiddenRecibido.name = 'dinero_recibido';
+      hiddenRecibido.value = document.getElementById('dinero_recibido').value;
+      
+      let hiddenCambio = document.createElement('input');
+      hiddenCambio.type = 'hidden';
+      hiddenCambio.name = 'cambio';
+      hiddenCambio.value = parseFloat(document.getElementById('dinero_recibido').value) - rawTotal;
+
+      e.target.appendChild(hiddenRecibido);
+      e.target.appendChild(hiddenCambio);
+
+      modal.hide();
+      e.target.submit();
+    };
+  });
+
+  document.getElementById('dinero_recibido').addEventListener('input', function(e) {
+    let rec = parseFloat(e.target.value) || 0;
+    let dif = rec - rawTotal;
+    let cd = document.getElementById('cambio_devolver');
+    let btn = document.getElementById('btn-confirm-buy');
+    if (rec >= rawTotal) {
+      cd.textContent = '$' + dif.toLocaleString('es-CO');
+      cd.style.color = '#10b981';
+      btn.disabled = false;
+    } else {
+      cd.textContent = 'Faltan $' + Math.abs(dif).toLocaleString('es-CO');
+      cd.style.color = 'var(--cc-orange)';
+      btn.disabled = true;
+    }
+  });
+
+  {% else %}
+  // Standard Client flow
+  document.getElementById('form-compra').addEventListener('submit', function(e) {
+    const count = parseInt(document.getElementById('seat-count').textContent);
+    if (count === 0) { e.preventDefault(); return; }
+    e.preventDefault();
+    document.getElementById('confirm-count').textContent = count;
+    document.getElementById('confirm-total').textContent = document.getElementById('seat-total').textContent;
+    document.getElementById('confirm-seats').textContent = document.getElementById('selected-seats-list').textContent;
+    const modal = new bootstrap.Modal(document.getElementById('confirmModal'));
+    modal.show();
+    document.getElementById('btn-confirm-buy').onclick = () => {
+      modal.hide();
+      e.target.submit();
+    };
+  });
+  {% endif %}
+</script>
+{% endblock %}

@@ -1,0 +1,118 @@
+{% extends 'base.html' %}
+{% block title %}Tiquete #{{ tiquete.codigo[:8] }} — Cinema Caribe{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+  <div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+
+      <!-- SUCCESS HEADER -->
+      <div class="text-center mb-4 fade-in-up">
+        <div class="mb-3" style="font-size:4rem;">🎉</div>
+        <h2 class="cc-section-title">¡Compra <span>Exitosa!</span></h2>
+        <p class="text-muted">Tu tiquete está listo. ¡Disfruta la película!</p>
+      </div>
+
+      <!-- TICKET -->
+      <div class="cc-ticket fade-in-up delay-2 mb-4">
+
+        <!-- Header -->
+        <div class="cc-ticket-header">
+          <img src="{{ url_for('static', filename='img/logo.png') }}" alt="Cinema Caribe" height="50" class="mb-2">
+          <h4 class="fw-800 text-white mb-0">{{ tiquete.pelicula_titulo }}</h4>
+          <small class="text-white opacity-75">{{ tiquete.sala_nombre }}</small>
+        </div>
+
+        <!-- Body -->
+        <div class="cc-ticket-body">
+          <div class="row g-3 mb-3">
+            <div class="col-6">
+              <div class="small text-muted text-uppercase fw-700 mb-1">Fecha</div>
+              <div class="fw-800">
+                {{ tiquete.fecha.strftime('%d %b %Y') if tiquete.fecha.__class__.__name__ == 'date' else tiquete.fecha }}
+              </div>
+            </div>
+            <div class="col-6">
+              <div class="small text-muted text-uppercase fw-700 mb-1">Hora</div>
+              <div class="fw-800">
+                {{ tiquete.hora[:5] if tiquete.hora is string else tiquete.hora.strftime('%H:%M') }}
+              </div>
+            </div>
+            <div class="col-12">
+              <div class="small text-muted text-uppercase fw-700 mb-1">Asientos</div>
+              <div class="fw-800">
+                {% for d in detalles %}
+                  <span class="badge" style="background:rgba(10,126,140,.3);color:var(--cc-teal-light);margin:2px;">
+                    {{ d.asiento_numero }}
+                  </span>
+                {% endfor %}
+              </div>
+            </div>
+            <div class="col-6">
+              <div class="small text-muted text-uppercase fw-700 mb-1">Cliente</div>
+              <div class="fw-800 text-truncate">{{ tiquete.nombre_cliente if tiquete.nombre_cliente else tiquete.usuario_nombre }}</div>
+            </div>
+            <div class="col-12">
+              <div class="small text-muted text-uppercase fw-700 mb-1">Total Pagado</div>
+              <div class="fw-800 text-gold">${{ '{:,.0f}'.format(tiquete.total) }} COP</div>
+            </div>
+            {% if session.pos_data and session.pos_data.tiquete_id == tiquete.id %}
+            <div class="col-6">
+              <div class="small text-muted text-uppercase fw-700 mb-1">Recibido</div>
+              <div class="fw-800">${{ '{:,.0f}'.format(session.pos_data.recibido) }}</div>
+            </div>
+            <div class="col-6">
+              <div class="small text-muted text-uppercase fw-700 mb-1">Cambio</div>
+              <div class="fw-800 text-teal">${{ '{:,.0f}'.format(session.pos_data.cambio) }}</div>
+            </div>
+            {% endif %}
+          </div>
+
+          <hr class="cc-ticket-divider">
+
+          <!-- Estado -->
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+              <div class="small text-muted mb-1">Estado</div>
+              <span class="cc-badge cc-badge-{{ tiquete.estado }}">
+                <i class="bi bi-{{ 'check-circle' if tiquete.estado == 'valido' else 'x-circle' if tiquete.estado == 'anulado' else 'dash-circle' }} me-1"></i>
+                {{ tiquete.estado | upper }}
+              </span>
+            </div>
+            <div class="text-end">
+              <div class="small text-muted mb-1">Código</div>
+              <code class="text-teal fw-700" style="font-size:.75rem;">{{ tiquete.codigo[:16] }}...</code>
+            </div>
+          </div>
+
+          <hr class="cc-ticket-divider">
+
+          <!-- QR Code -->
+          <div class="text-center py-3">
+            <p class="small text-muted mb-2">Presenta este código en la taquilla</p>
+            <img src="{{ qr_b64 }}" alt="QR Tiquete"
+                 style="max-width:180px;border-radius:12px;border:3px solid rgba(10,126,140,.4);padding:4px;background:white;">
+            <div class="mt-2">
+              <code class="small text-muted">{{ tiquete.codigo }}</code>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ACTIONS -->
+      <div class="d-flex gap-3 justify-content-center flex-wrap fade-in-up delay-3">
+        <a href="{{ url_for('tiquetes.mis_tiquetes') }}" class="cc-btn-secondary">
+          <i class="bi bi-ticket-perforated"></i> Mis Tiquetes
+        </a>
+        <a href="{{ url_for('main.home') }}" class="cc-btn-outline">
+          <i class="bi bi-film"></i> Ver más películas
+        </a>
+        <button onclick="window.print()" class="cc-btn-outline">
+          <i class="bi bi-printer"></i> Imprimir
+        </button>
+      </div>
+
+    </div>
+  </div>
+</div>
+{% endblock %}
