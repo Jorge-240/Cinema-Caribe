@@ -1,8 +1,13 @@
 import os
 import urllib.parse
 from dotenv import load_dotenv
+import logging
 
 load_dotenv()
+
+# Setup logging para debugging en Railway
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
 def _parse_mysql_url(url):
@@ -43,6 +48,7 @@ class Config:
         DB_USER = url_data['DB_USER'] or 'root'
         DB_PASSWORD = url_data['DB_PASSWORD'] or ''
         DB_NAME = url_data['DB_NAME'] or 'cinema_caribe'
+        logger.info(f"✅ Config: Usando MySQL URL env vars: {DB_HOST}:{DB_PORT}/{DB_NAME}")
     else:
         DB_HOST = (os.environ.get('MYSQLHOST')
                    or os.environ.get('MYSQL_HOST')
@@ -74,6 +80,8 @@ class Config:
             DB_NAME = parsed['DB_NAME'] if parsed and parsed.get('DB_NAME') else 'cinema_caribe'
         else:
             DB_NAME = db_name
+            
+        logger.info(f"✅ Config: Usando individual env vars: {DB_HOST}:{DB_PORT}/{DB_NAME} user={DB_USER}")
 
     UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'static', 'img')
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024
