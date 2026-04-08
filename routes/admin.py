@@ -205,6 +205,28 @@ def historial_tiquetes():
     return render_template('admin/historial_tiquetes.html', tiquetes=tiquetes)
 
 
+@admin_bp.route('/tiquetes/anular/<int:tiquete_id>', methods=['POST'])
+@admin_required
+def anular_tiquete(tiquete_id):
+    try:
+        # Verificar que el tiquete existe
+        tiquete = Tiquete.obtener(tiquete_id)
+        if not tiquete:
+            flash('Tiquete no encontrado.', 'danger')
+        elif tiquete['estado'] != 'valido':
+            flash(f"Solo se pueden anular tiquetes válidos. Este está {tiquete['estado']}.", 'warning')
+        else:
+            # Anular el tiquete
+            if Tiquete.marcar_anulado(tiquete_id):
+                flash(f"✅ Tiquete {tiquete['codigo'][:12]}... anulado correctamente.", 'success')
+            else:
+                flash('No se pudo anular el tiquete.', 'danger')
+    except Exception as e:
+        flash(f'Error: {e}', 'danger')
+    
+    return redirect(url_for('admin.historial_tiquetes'))
+
+
 # ── API REST ─────────────────────────────────────────────────
 @admin_bp.route('/api/peliculas', methods=['GET'])
 def api_peliculas():

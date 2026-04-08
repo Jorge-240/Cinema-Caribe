@@ -143,6 +143,20 @@ class Tiquete:
         return afectados > 0
 
     @staticmethod
+    def marcar_anulado(tiquete_id):
+        """Marca un tiquete como anulado (solo si está válido)."""
+        db = get_db()
+        cur = db.cursor()
+        cur.execute(
+            "UPDATE tiquetes SET estado='anulado' WHERE id=%s AND estado='valido'",
+            (tiquete_id,)
+        )
+        afectados = cur.rowcount
+        db.commit()
+        cur.close()
+        return afectados > 0
+
+    @staticmethod
     def listar_usuario(usuario_id):
         db = get_db()
         cur = db.cursor(dictionary=True)
