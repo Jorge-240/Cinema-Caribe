@@ -78,9 +78,18 @@ def comprar():
 @login_required
 def detalle(tiquete_id):
     tiquete  = Tiquete.obtener(tiquete_id)
-    if not tiquete or tiquete['usuario_id'] != session['usuario_id']:
+    if not tiquete:
         flash('Tiquete no encontrado.', 'danger')
         return redirect(url_for('main.home'))
+    
+    # Permitir si es el dueño del tiquete O si es admin
+    usuario_id = session.get('usuario_id')
+    es_admin = session.get('rol') == 'admin'
+    
+    if not es_admin and tiquete['usuario_id'] != usuario_id:
+        flash('No tienes permiso para ver este tiquete.', 'danger')
+        return redirect(url_for('main.home'))
+    
     detalles = Tiquete.obtener_detalles(tiquete_id)
     from utils.helpers import generar_qr_base64
     qr_b64 = generar_qr_base64(tiquete['codigo'])
