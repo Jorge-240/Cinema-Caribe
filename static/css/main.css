@@ -526,23 +526,32 @@ body {
    FORMS
 ══════════════════════════════════════════════════════════ */
 .cc-form-control {
-  background: rgba(10,126,140,.1);
-  border: 2px solid rgba(10,126,140,.3);
+  background: var(--cc-dark2);
+  border: 2px solid var(--cc-teal);
   color: var(--cc-white);
   border-radius: var(--cc-radius);
   padding: .75rem 1rem;
   font-family: var(--cc-font-body);
+  font-size: 1rem;
   transition: all .3s;
 }
 .cc-form-control:focus {
-  background: rgba(10,126,140,.15);
-  border-color: var(--cc-teal);
+  background: rgba(10,126,140,.2);
+  border-color: var(--cc-teal-light);
   color: var(--cc-white);
-  box-shadow: 0 0 0 4px rgba(10,126,140,.2);
+  box-shadow: 0 0 0 4px rgba(10,126,140,.3);
   outline: none;
 }
 .cc-form-control::placeholder { color: var(--cc-muted); }
-..cc-form-control option { background: var(--cc-dark2); color: var(--cc-white); }
+.cc-form-control option { 
+  background: var(--cc-dark2); 
+  color: var(--cc-white);
+  padding: .5rem;
+}
+.cc-form-control option:checked {
+  background: linear-gradient(var(--cc-teal), var(--cc-teal));
+  color: var(--cc-white);
+}
 
 .cc-input,
 .cc-input:focus {
