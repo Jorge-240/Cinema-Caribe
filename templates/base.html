@@ -127,23 +127,10 @@
 <!-- ══════════════════ FOOTER ══════════════════ -->
 <footer class="cc-footer mt-5">
   <div class="container">
-    <div class="row align-items-center py-4">
-      <div class="col-md-4 text-center text-md-start mb-3 mb-md-0">
-        <img src="{{ url_for('static', filename='img/logo.png') }}" alt="Cinema Caribe" height="56">
-      </div>
-      <div class="col-md-4 text-center mb-3 mb-md-0">
+    <div class="row align-items-center justify-content-center py-4">
+      <div class="col-md-12 text-center">
         <p class="cc-footer-tagline mb-1">Cine Clásico y Calidez Tropical</p>
         <p class="text-muted small mb-0">© 2024 Cinema Caribe. Todos los derechos reservados.</p>
-      </div>
-      <div class="col-md-4 text-center text-md-end">
-        {% if usuario_rol in ['admin', 'taquilla', 'validador'] %}
-        <a href="{{ url_for('tiquetes.validar') }}" class="btn cc-btn-outline btn-sm me-2">
-          <i class="bi bi-qr-code-scan me-1"></i>Validar Tiquete
-        </a>
-        {% endif %}
-        <a href="{{ url_for('auth.login') }}" class="btn cc-btn-primary btn-sm">
-          <i class="bi bi-person me-1"></i>Mi Cuenta
-        </a>
       </div>
     </div>
   </div>
