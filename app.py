@@ -633,6 +633,187 @@ def create_app(env='default'):
                         'taquilla': 'taquilla@cinemacaribe.com / taquilla123',
                     }
                 }), 200
+            
+            except Exception as e:
+                logger.error(f"Error en complete-setup: {str(e)}", exc_info=True)
+                return jsonify({
+                    'status': 'error',
+                    'message': str(e)
+                }), 500
+
+        # ══════════════════════════════════════════
+        # Generate Seats Endpoint
+        # ══════════════════════════════════════════
+        @app.route('/generate-seats', methods=['POST', 'GET'])
+        def generate_seats_all():
+            """Genera asientos para todas las salas que no tengan."""
+            try:
+                import mysql.connector
+                
+                conn = mysql.connector.connect(
+                    host=app.config.get('DB_HOST'),
+                    port=int(app.config.get('DB_PORT')),
+                    user=app.config.get('DB_USER'),
+                    password=app.config.get('DB_PASSWORD'),
+                    database=app.config.get('DB_NAME'),
+                    autocommit=False,
+                    charset='utf8mb4',
+                )
+                
+                cursor = conn.cursor(dictionary=True)
+                result_steps = []
+                
+                # Obtener todas las salas
+                cursor.execute("SELECT id, nombre, filas, cols FROM salas ORDER BY id")
+                salas = cursor.fetchall()
+                
+                if not salas:
+                    return jsonify({
+                        'status': 'error',
+                        'message': 'No hay salas en la base de datos'
+                    }), 400
+                
+                for sala in salas:
+                    sala_id = sala['id']
+                    sala_nombre = sala['nombre']
+                    filas = sala['filas']
+                    cols = sala['cols']
+                    
+                    # Verificar si la sala ya tiene asientos
+                    cursor.execute("SELECT COUNT(*) as count FROM asientos WHERE sala_id = %s", (sala_id,))
+                    count = cursor.fetchone()['count']
+                    
+                    if count > 0:
+                        result_steps.append({
+                            'sala': sala_nombre,
+                            'status': 'skipped',
+                            'message': f'Ya tiene {count} asientos'
+                        })
+                        continue
+                    
+                    # Generar asientos para la sala
+                    try:
+                        letras = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+                        asientos_count = 0
+                        
+                        for fila_idx in range(filas):
+                            if fila_idx >= len(letras):
+                                break
+                            fila_letra = letras[fila_idx]
+                            for col_idx in range(1, cols + 1):
+                                numero = f"{fila_letra}{col_idx}"
+                                cursor.execute("""
+                                    INSERT INTO asientos (numero, fila, columna, sala_id) 
+                                    VALUES (%s, %s, %s, %s)
+                                """, (numero, fila_letra, col_idx, sala_id))
+                                asientos_count += 1
+                        
+                        conn.commit()
+                        total_expected = filas * cols
+                        result_steps.append({
+                            'sala': sala_nombre,
+                            'status': 'success',
+                            'count': asientos_count,
+                            'expected': total_expected
+                        })
+                        logger.info(f"✅ {asientos_count} asientos generados para {sala_nombre}")
+                    except Exception as e:
+                        conn.rollback()
+                        result_steps.append({
+                            'sala': sala_nombre,
+                            'status': 'error',
+                            'error': str(e)
+                        })
+                        logger.error(f"Error generando asientos para {sala_nombre}: {e}")
+                
+                cursor.close()
+                conn.close()
+                
+                return jsonify({
+                    'status': 'success',
+                    'message': 'Generación de asientos completada',
+                    'results': result_steps
+                }), 200
+            
+            except Exception as e:
+                logger.error(f"Error en generate-seats: {str(e)}", exc_info=True)
+                return jsonify({
+                    'status': 'error',
+                    'message': str(e)
+                }), 500
+
+        @app.route('/generate-seats/<int:sala_id>', methods=['POST', 'GET'])
+        def generate_seats_single(sala_id):
+            """Genera asientos para una sala específica."""
+            try:
+                import mysql.connector
+                
+                conn = mysql.connector.connect(
+                    host=app.config.get('DB_HOST'),
+                    port=int(app.config.get('DB_PORT')),
+                    user=app.config.get('DB_USER'),
+                    password=app.config.get('DB_PASSWORD'),
+                    database=app.config.get('DB_NAME'),
+                    autocommit=False,
+                    charset='utf8mb4',
+                )
+                
+                cursor = conn.cursor(dictionary=True)
+                
+                # Obtener la sala
+                cursor.execute("SELECT id, nombre, filas, cols FROM salas WHERE id = %s", (sala_id,))
+                sala = cursor.fetchone()
+                
+                if not sala:
+                    return jsonify({
+                        'status': 'error',
+                        'message': f'Sala ID {sala_id} no encontrada'
+                    }), 404
+                
+                sala_nombre = sala['nombre']
+                filas = sala['filas']
+                cols = sala['cols']
+                
+                # Eliminar asientos existentes para regenerar
+                cursor.execute("DELETE FROM asientos WHERE sala_id = %s", (sala_id,))
+                conn.commit()
+                
+                # Generar asientos
+                letras = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+                asientos_count = 0
+                
+                for fila_idx in range(filas):
+                    if fila_idx >= len(letras):
+                        break
+                    fila_letra = letras[fila_idx]
+                    for col_idx in range(1, cols + 1):
+                        numero = f"{fila_letra}{col_idx}"
+                        cursor.execute("""
+                            INSERT INTO asientos (numero, fila, columna, sala_id) 
+                            VALUES (%s, %s, %s, %s)
+                        """, (numero, fila_letra, col_idx, sala_id))
+                        asientos_count += 1
+                
+                conn.commit()
+                cursor.close()
+                conn.close()
+                
+                logger.info(f"✅ {asientos_count} asientos generados para {sala_nombre}")
+                
+                return jsonify({
+                    'status': 'success',
+                    'message': f'Asientos generados para {sala_nombre}',
+                    'sala': sala_nombre,
+                    'count': asientos_count,
+                    'config': f'{filas} filas x {cols} columnas'
+                }), 200
+            
+            except Exception as e:
+                logger.error(f"Error en generate-seats/{sala_id}: {str(e)}", exc_info=True)
+                return jsonify({
+                    'status': 'error',
+                    'message': str(e)
+                }), 500
                 
             except Exception as e:
                 logger.error(f"Error en complete-setup: {str(e)}", exc_info=True)
