@@ -599,17 +599,16 @@ def create_app(env='default'):
                     cursor.execute("SELECT LAST_INSERT_ID() as id")
                     funcion_id = cursor.fetchone()['id']
                     
-                    # Crear relaciones funcion_asiento para todos los asientos de la sala (usando sala_id dinámico)
-                    cursor.execute("SELECT id FROM asientos WHERE sala_id = %s", (sala_id,))
-                    asientos_sala = cursor.fetchall()
-                    asientos_count = 0
+                    # Los asientos quedan disponibles automáticamente
+                    # porque funcion_asiento almacena solo asientos ocupados/vendidos
+                    cursor.execute("SELECT COUNT(*) as count FROM asientos WHERE sala_id = %s", (sala_id,))
+                    asientos_count = cursor.fetchone()['count']
                     
-                    for asiento in asientos_sala:
-                        cursor.execute("""
-                            INSERT INTO funcion_asiento (funcion_id, asiento_id, precio, estado) 
-                            VALUES (%s, %s, %s, %s)
-                        """, (funcion_id, asiento['id'], 25000, 'disponible'))
-                        asientos_count += 1
+                    conn.commit()
+                    setup_steps.append({'step': '4. Película creada', 'status': 'success'})
+                    setup_steps.append({'step': '5. Función creada', 'status': 'success'})
+                    setup_steps.append({'step': '6. Asientos inicializados como disponibles', 'status': 'success', 'count': asientos_count})
+                    logger.info(f"✅ Película, función y {asientos_count} asientos disponibles creados")
                     
                     conn.commit()
                     setup_steps.append({'step': '4. Película creada', 'status': 'success'})
