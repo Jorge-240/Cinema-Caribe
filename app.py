@@ -572,6 +572,14 @@ def create_app(env='default'):
                 
                 # ===== PASO 5: Crear Película y Función con Relaciones =====
                 try:
+                    # Obtener el ID de la sala recién creada
+                    cursor.execute("SELECT id FROM salas WHERE nombre = 'Sala 1'")
+                    sala_result = cursor.fetchone()
+                    sala_id = sala_result['id'] if sala_result else None
+                    
+                    if not sala_id:
+                        raise Exception("No se encontró la sala 'Sala 1'")
+                    
                     cursor.execute("""
                         INSERT INTO peliculas (titulo, descripcion, duracion, genero, clasificacion, estado) 
                         VALUES (%s, %s, %s, %s, %s, %s)
@@ -581,18 +589,18 @@ def create_app(env='default'):
                     cursor.execute("SELECT LAST_INSERT_ID() as id")
                     pelicula_id = cursor.fetchone()['id']
                     
-                    # Agregar una función para hoy
+                    # Agregar una función para hoy (usando sala_id dinámico)
                     cursor.execute("""
                         INSERT INTO funciones (pelicula_id, sala_id, fecha, hora, precio, estado) 
                         VALUES (%s, %s, CURDATE(), %s, %s, %s)
-                    """, (pelicula_id, 1, '20:10:00', 25000, 'programada'))
+                    """, (pelicula_id, sala_id, '20:10:00', 25000, 'programada'))
                     
                     # Obtener ID de la función recién creada
                     cursor.execute("SELECT LAST_INSERT_ID() as id")
                     funcion_id = cursor.fetchone()['id']
                     
-                    # Crear relaciones funcion_asiento para todos los asientos de la sala
-                    cursor.execute("SELECT id FROM asientos WHERE sala_id = 1")
+                    # Crear relaciones funcion_asiento para todos los asientos de la sala (usando sala_id dinámico)
+                    cursor.execute("SELECT id FROM asientos WHERE sala_id = %s", (sala_id,))
                     asientos_sala = cursor.fetchall()
                     asientos_count = 0
                     
