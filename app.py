@@ -464,28 +464,59 @@ def create_app(env='default'):
                     user=app.config.get('DB_USER'),
                     password=app.config.get('DB_PASSWORD'),
                     database=app.config.get('DB_NAME'),
-                    autocommit=True,
+                    autocommit=False,  # Transacción manual
                     charset='utf8mb4',
                 )
                 
                 cursor = conn.cursor(dictionary=True)
                 setup_steps = []
                 
-                # ===== PASO 1: Crear Sala =====
+                # ===== PASO 0: Desabilitar FK constraints =====
                 try:
-                    cursor.execute("DELETE FROM asientos WHERE sala_id NOT IN (SELECT id FROM salas)")
+                    cursor.execute("SET FOREIGN_KEY_CHECKS = 0")
+                    logger.info("🔓 Foreign key checks deshabilitados")
+                except Exception as e:
+                    logger.warning(f"No se pudieron deshabilitar FK checks: {e}")
+                
+                # ===== PASO 1: Limpiar datos viejos =====
+                try:
+                    cursor.execute("DELETE FROM funcion_asiento")
+                    cursor.execute("DELETE FROM tiquetes")
+                    cursor.execute("DELETE FROM funciones")
+                    cursor.execute("DELETE FROM peliculas")
+                    cursor.execute("DELETE FROM asientos")
                     cursor.execute("DELETE FROM salas")
+                    cursor.execute("DELETE FROM usuarios")
+                    conn.commit()
+                    setup_steps.append({'step': '0. Datos viejos eliminados', 'status': 'success'})
+                    logger.info("🗑️ Tablas limpias")
+                except Exception as e:
+                    conn.rollback()
+                    setup_steps.append({'step': '0. Limpiar datos', 'status': 'error', 'error': str(e)})
+                    logger.error(f"Error limpiando datos: {e}")
+                
+                # ===== PASO 1b: ReabilSitar FK constraints =====
+                try:
+                    cursor.execute("SET FOREIGN_KEY_CHECKS = 1")
+                    logger.info("🔒 Foreign key checks re-habilitados")
+                except Exception as e:
+                    logger.warning(f"No se pudieron re-habilitar FK checks: {e}")
+                
+                # ===== PASO 2: Crear Sala =====
+                try:
                     cursor.execute("""
                         INSERT INTO salas (nombre, filas, cols) 
                         VALUES ('Sala 1', 10, 15)
                     """)
+                    conn.commit()
                     setup_steps.append({'step': '1. Sala creada', 'status': 'success'})
                     logger.info("✅ Sala 1 creada (10x15)")
                 except Exception as e:
+                    conn.rollback()
                     setup_steps.append({'step': '1. Crear Sala', 'status': 'error', 'error': str(e)})
                     logger.error(f"Error creando sala: {e}")
                 
-                # ===== PASO 2: Generar Asientos =====
+                # ===== PASO 3: Generar Asientos =====
                 try:
                     cursor.execute("""
                         SELECT id, nombre, filas, cols FROM salas WHERE nombre = 'Sala 1'
@@ -496,9 +527,6 @@ def create_app(env='default'):
                         sala_id = sala['id']
                         filas = sala['filas']
                         cols = sala['cols']
-                        
-                        # Limpiar y generar
-                        cursor.execute("DELETE FROM asientos WHERE sala_id = %s", (sala_id,))
                         
                         letras = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
                         asientos_count = 0
@@ -511,17 +539,16 @@ def create_app(env='default'):
                                     VALUES (%s, %s, %s, %s)
                                 """, (numero, fila_letra, col_idx, sala_id))
                                 asientos_count += 1
-                        
+                        conn.commit()
                         setup_steps.append({'step': '2. Asientos generados', 'status': 'success', 'count': asientos_count})
                         logger.info(f"✅ {asientos_count} asientos creados")
                 except Exception as e:
+                    conn.rollback()
                     setup_steps.append({'step': '2. Generar Asientos', 'status': 'error', 'error': str(e)})
                     logger.error(f"Error generando asientos: {e}")
                 
-                # ===== PASO 3: Crear/resetear Usuarios =====
+                # ===== PASO 4: Crear Usuarios =====
                 try:
-                    cursor.execute("DELETE FROM usuarios")
-                    
                     test_users = [
                         ('Admin User', 'admin@cinemacaribe.com', 'admin123', 'admin'),
                         ('Validador', 'validador@cinemacaribe.com', 'validador123', 'validador'),
@@ -535,58 +562,56 @@ def create_app(env='default'):
                             VALUES (%s, %s, %s, %s)
                         """, (nombre, email, hashed_pwd, rol))
                     
+                    conn.commit()
                     setup_steps.append({'step': '3. Usuarios creados', 'status': 'success', 'count': len(test_users)})
                     logger.info(f"✅ {len(test_users)} usuarios creados")
                 except Exception as e:
+                    conn.rollback()
                     setup_steps.append({'step': '3. Crear Usuarios', 'status': 'error', 'error': str(e)})
                     logger.error(f"Error creando usuarios: {e}")
                 
-                # ===== PASO 4: Agregar una Película de Prueba =====
+                # ===== PASO 5: Crear Película y Función con Relaciones =====
                 try:
-                    cursor.execute("DELETE FROM peliculas")
                     cursor.execute("""
                         INSERT INTO peliculas (titulo, descripcion, duracion, genero, clasificacion, estado) 
                         VALUES (%s, %s, %s, %s, %s, %s)
                     """, ('Noche en Cartagena', 'Una hermosa noche en Cartagena', 120, 'Drama', 'PG', 'activa'))
                     
                     # Obtener ID de la película
-                    cursor.execute("SELECT id FROM peliculas WHERE titulo = 'Noche en Cartagena'")
-                    pelicula = cursor.fetchone()
+                    cursor.execute("SELECT LAST_INSERT_ID() as id")
+                    pelicula_id = cursor.fetchone()['id']
                     
-                    if pelicula:
-                        pelicula_id = pelicula['id']
-                        
-                        # Agregar una función para hoy
+                    # Agregar una función para hoy
+                    cursor.execute("""
+                        INSERT INTO funciones (pelicula_id, sala_id, fecha, hora, precio, estado) 
+                        VALUES (%s, %s, CURDATE(), %s, %s, %s)
+                    """, (pelicula_id, 1, '20:10:00', 25000, 'programada'))
+                    
+                    # Obtener ID de la función recién creada
+                    cursor.execute("SELECT LAST_INSERT_ID() as id")
+                    funcion_id = cursor.fetchone()['id']
+                    
+                    # Crear relaciones funcion_asiento para todos los asientos de la sala
+                    cursor.execute("SELECT id FROM asientos WHERE sala_id = 1")
+                    asientos_sala = cursor.fetchall()
+                    asientos_count = 0
+                    
+                    for asiento in asientos_sala:
                         cursor.execute("""
-                            INSERT INTO funciones (pelicula_id, sala_id, fecha, hora, precio, estado) 
-                            VALUES (%s, %s, CURDATE(), %s, %s, %s)
-                        """, (pelicula_id, 1, '20:10:00', 25000, 'programada'))
-                        
-                        # Obtener ID de la función recién creada
-                        cursor.execute("SELECT id FROM funciones WHERE pelicula_id = %s AND sala_id = 1 ORDER BY id DESC LIMIT 1", (pelicula_id,))
-                        funcion = cursor.fetchone()
-                        
-                        if funcion:
-                            funcion_id = funcion['id']
-                            
-                            # Crear relaciones funcion_asiento para todos los asientos de la sala
-                            cursor.execute("SELECT id FROM asientos WHERE sala_id = 1")
-                            asientos_sala = cursor.fetchall()
-                            
-                            for asiento in asientos_sala:
-                                cursor.execute("""
-                                    INSERT INTO funcion_asiento (funcion_id, asiento_id, precio, estado) 
-                                    VALUES (%s, %s, %s, %s)
-                                """, (funcion_id, asiento['id'], 25000, 'disponible'))
-                            
-                            setup_steps.append({'step': '4b. Relaciones función-asiento creadas', 'status': 'success', 'count': len(asientos_sala)})
-                            logger.info(f"✅ {len(asientos_sala)} relaciones funcion_asiento creadas")
+                            INSERT INTO funcion_asiento (funcion_id, asiento_id, precio, estado) 
+                            VALUES (%s, %s, %s, %s)
+                        """, (funcion_id, asiento['id'], 25000, 'disponible'))
+                        asientos_count += 1
                     
-                    setup_steps.append({'step': '4. Película y función de prueba creadas', 'status': 'success'})
-                    logger.info("✅ Película 'Noche en Cartagena' creada")
+                    conn.commit()
+                    setup_steps.append({'step': '4. Película creada', 'status': 'success'})
+                    setup_steps.append({'step': '5. Función creada', 'status': 'success'})
+                    setup_steps.append({'step': '6. Relaciones función-asiento creadas', 'status': 'success', 'count': asientos_count})
+                    logger.info(f"✅ Película, función y {asientos_count} relaciones funcion_asiento creadas")
                 except Exception as e:
-                    setup_steps.append({'step': '4. Crear Película', 'status': 'error', 'error': str(e)})
-                    logger.error(f"Error creando película: {e}")
+                    conn.rollback()
+                    setup_steps.append({'step': '4-6. Crear Película/Función/Relaciones', 'status': 'error', 'error': str(e)})
+                    logger.error(f"Error creando película/función/relaciones: {e}", exc_info=True)
                 
                 cursor.close()
                 conn.close()
