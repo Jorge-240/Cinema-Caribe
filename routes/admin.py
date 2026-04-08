@@ -103,11 +103,17 @@ def funciones():
 @admin_required
 def nueva_funcion():
     peliculas = Pelicula.listar(solo_activas=True)
+    salas = Funcion.obtener_salas()
     if request.method == 'POST':
         try:
+            # Usar la primera sala disponible si no se proporciona
+            sala_id = int(request.form.get('sala_id'))
+            if not sala_id and salas:
+                sala_id = salas[0]['id']
+            
             Funcion.crear(
                 pelicula_id = int(request.form['pelicula_id']),
-                sala_id     = int(request.form.get('sala_id', 1)),
+                sala_id     = sala_id,
                 fecha       = request.form['fecha'],
                 hora        = request.form['hora'],
                 precio      = float(request.form['precio']),
@@ -120,7 +126,7 @@ def nueva_funcion():
         except Exception as e:
             flash(f'Error: {e}', 'danger')
     return render_template('admin/form_funcion.html',
-                           funcion=None, peliculas=peliculas)
+                           funcion=None, peliculas=peliculas, salas=salas)
 
 
 @admin_bp.route('/funciones/eliminar/<int:fid>', methods=['POST'])
@@ -142,12 +148,17 @@ def editar_funcion(fid):
         flash('Función no encontrada.', 'danger')
         return redirect(url_for('admin.funciones'))
     peliculas = Pelicula.listar(solo_activas=True)
+    salas = Funcion.obtener_salas()
     if request.method == 'POST':
         try:
+            sala_id = int(request.form.get('sala_id'))
+            if not sala_id and salas:
+                sala_id = salas[0]['id']
+            
             Funcion.actualizar(
                 fid,
                 pelicula_id = int(request.form['pelicula_id']),
-                sala_id     = int(request.form.get('sala_id', 1)),
+                sala_id     = sala_id,
                 fecha       = request.form['fecha'],
                 hora        = request.form['hora'],
                 precio      = float(request.form['precio']),
@@ -160,7 +171,7 @@ def editar_funcion(fid):
         except Exception as e:
             flash(f'Error: {e}', 'danger')
     return render_template('admin/form_funcion.html',
-                           funcion=funcion, peliculas=peliculas)
+                           funcion=funcion, peliculas=peliculas, salas=salas)
 
 
 # ── Usuarios ─────────────────────────────────────────────────

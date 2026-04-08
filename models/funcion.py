@@ -6,6 +6,16 @@ from utils.helpers import fix_row, fix_rows
 class Funcion:
 
     @staticmethod
+    def obtener_salas():
+        """Obtiene todas las salas disponibles."""
+        db = get_db()
+        cur = db.cursor(dictionary=True)
+        cur.execute("SELECT id, nombre, filas, cols FROM salas ORDER BY nombre")
+        salas = cur.fetchall()
+        cur.close()
+        return fix_rows(salas) if salas else []
+
+    @staticmethod
     def listar(pelicula_id=None, solo_futuras=False):
         db = get_db()
         cur = db.cursor(dictionary=True)

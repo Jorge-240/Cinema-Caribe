@@ -31,11 +31,24 @@
           </div>
           <div class="row g-3 mb-3">
             <div class="col-6">
+              <label class="cc-form-label">Sala *</label>
+              <select name="sala_id" class="form-select cc-form-control" required>
+                <option value="">— Selecciona sala —</option>
+                {% for s in salas %}
+                <option value="{{ s.id }}" {{ 'selected' if funcion and funcion.sala_id == s.id else 'selected' if loop.first }}>
+                  {{ s.nombre }} ({{ s.filas }}x{{ s.cols }})
+                </option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-6">
               <label class="cc-form-label">Fecha *</label>
               <input type="date" name="fecha" class="form-control cc-form-control"
                      value="{{ funcion.fecha if funcion else '' }}"
                      required>
             </div>
+          </div>
+          <div class="row g-3 mb-3">
             <div class="col-6">
               <label class="cc-form-label">Hora *</label>
               <input type="time" name="hora" class="form-control cc-form-control"
