@@ -43,17 +43,17 @@ def init_scheduler(app):
             except Exception as e:
                 logger.error(f"Error habilitando tickets: {e}")
     
-    # 3. Mover funciones finalizadas al historial cada 1 hora
-    @scheduler.scheduled_job(IntervalTrigger(hours=1))
-    def mover_al_historial():
+    # 3. Eliminar funciones finalizadas cada 1 minuto (enseguida que terminen)
+    @scheduler.scheduled_job(IntervalTrigger(minutes=1))
+    def eliminar_finalizadas():
         with app.app_context():
             try:
                 from models.funcion import Funcion
-                movidas = Funcion.mover_finalizadas_a_historial()
-                if movidas > 0:
-                    logger.info(f"[{datetime.now()}] {movidas} funciones movidas al historial")
+                eliminadas = Funcion.eliminar_funciones_finalizadas()
+                if eliminadas > 0:
+                    logger.info(f"[{datetime.now()}] {eliminadas} funciones finalizadas eliminadas")
             except Exception as e:
-                logger.error(f"Error moviendo al historial: {e}")
+                logger.error(f"Error eliminando funciones finalizadas: {e}")
     
     scheduler.start()
     logger.info("✓ Scheduler inicializado correctamente")

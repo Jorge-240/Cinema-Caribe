@@ -34,9 +34,8 @@ class Funcion:
             conditions.append("f.pelicula_id = %s")
             params.append(pelicula_id)
         if solo_futuras:
-            # Mostrar solo funciones programadas que aún no han comenzado.
-            conditions.append("f.estado = 'programada'")
-            conditions.append("(f.fecha > CURDATE() OR (f.fecha = CURDATE() AND f.hora > CURTIME()))")
+            # Mostrar funciones programadas O en curso (no finalizadas ni canceladas)
+            conditions.append("f.estado IN ('programada', 'en_curso')")
         if conditions:
             sql += " WHERE " + " AND ".join(conditions)
         sql += " ORDER BY f.fecha, f.hora"
@@ -292,5 +291,46 @@ class Funcion:
                     movidas += 1
             
             return movidas
+        finally:
+            cur.close()
+
+    @staticmethod
+    def eliminar_funciones_finalizadas():
+        """
+        Elimina inmediatamente las funciones que ya han terminado.
+        Debe ejecutarse periódicamente (cada 1 minuto).
+        """
+        from datetime import datetime
+        
+        db = get_db()
+        cur = db.cursor(dictionary=True)
+        try:
+            ahora = datetime.now()
+            
+            # Obtener funciones finalizadas
+            cur.execute("""
+                SELECT f.id, f.fecha, f.hora, p.duracion
+                FROM funciones f
+                JOIN peliculas p ON p.id = f.pelicula_id
+                WHERE f.estado = 'finalizada'
+                AND DATE_ADD(TIMESTAMP(f.fecha, f.hora), INTERVAL p.duracion MINUTE) <= %s
+            """, (ahora,))
+            
+            funciones = cur.fetchall()
+            eliminadas = 0
+            
+            for f in funciones:
+                try:
+                    # Eliminar relaciones primero para evitar FK errors
+                    cur.execute("DELETE FROM funcion_asiento WHERE funcion_id = %s", (f['id'],))
+                    cur.execute("DELETE FROM tiquetes WHERE funcion_id = %s", (f['id'],))
+                    cur.execute("DELETE FROM funciones WHERE id = %s", (f['id'],))
+                    db.commit()
+                    eliminadas += 1
+                except Exception as e:
+                    db.rollback()
+                    print(f"Error eliminando función {f['id']}: {e}")
+            
+            return eliminadas
         finally:
             cur.close()
