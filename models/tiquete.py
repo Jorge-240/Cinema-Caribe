@@ -18,6 +18,7 @@ class Tiquete:
         try:
             # 0. Verificar que la función esté disponible para venta.
             from datetime import datetime, timedelta
+            from utils.timezone import now_colombia
             cur.execute(
                 "SELECT f.fecha, f.hora, f.estado, p.duracion "
                 "FROM funciones f "
@@ -50,7 +51,7 @@ class Tiquete:
             hora_obj = parse_date_or_time(funcion['hora'], mode='time')
             inicio_funcion = datetime.combine(fecha_obj, hora_obj)
             fin_funcion = inicio_funcion + timedelta(minutes=funcion['duracion'])
-            ahora = datetime.now()
+            ahora = now_colombia()
 
             if funcion['estado'] == 'cancelada':
                 raise ValueError('No se pueden comprar entradas para una función cancelada.')
@@ -268,6 +269,7 @@ class Tiquete:
         - tiquete: datos del tiquete
         """
         from datetime import datetime, timedelta
+        from utils.timezone import now_colombia
         
         db = get_db()
         cur = db.cursor(dictionary=True)
@@ -348,7 +350,7 @@ class Tiquete:
         fin_funcion = inicio_funcion + timedelta(minutes=duracion_min)
         
         # Hora actual
-        ahora = datetime.now()
+        ahora = now_colombia()
         
         # Determinar estado
         if resultado['funcion_estado'] == 'cancelada':
@@ -405,7 +407,8 @@ class Tiquete:
         cur = db.cursor()
         try:
             from datetime import datetime
-            ahora = datetime.now()
+            from utils.timezone import now_colombia
+            ahora = now_colombia()
             cur.execute(
                 """UPDATE tiquetes 
                    SET estado='usado', fecha_validacion=%s, fue_validado=TRUE 
@@ -425,11 +428,12 @@ class Tiquete:
         Debe ejecutarse periodicamente (cada 1-5 min).
         """
         from datetime import datetime, timedelta
+        from utils.timezone import now_colombia
         
         db = get_db()
         cur = db.cursor()
         try:
-            ahora = datetime.now()
+            ahora = now_colombia()
             ventana_min = ahora + timedelta(minutes=25)
             ventana_max = ahora + timedelta(minutes=26)
             

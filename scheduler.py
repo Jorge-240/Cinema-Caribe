@@ -11,6 +11,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 import logging
 from datetime import datetime
+from utils.timezone import now_colombia
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +28,7 @@ def init_scheduler(app):
                 from models.funcion import Funcion
                 curso, finalizado = Funcion.actualizar_estados_automaticos()
                 if curso > 0 or finalizado > 0:
-                    logger.info(f"[{datetime.now()}] Estados actualizados: {curso} a en_curso, {finalizado} a finalizada")
+                    logger.info(f"[{now_colombia()}] Estados actualizados: {curso} a en_curso, {finalizado} a finalizada")
             except Exception as e:
                 logger.error(f"Error actualizando estados: {e}")
     
@@ -39,7 +40,7 @@ def init_scheduler(app):
                 from models.tiquete import Tiquete
                 habilitados = Tiquete.habilitar_tickets_ventana()
                 if habilitados > 0:
-                    logger.info(f"[{datetime.now()}] {habilitados} tickets habilitados")
+                    logger.info(f"[{now_colombia()}] {habilitados} tickets habilitados")
             except Exception as e:
                 logger.error(f"Error habilitando tickets: {e}")
     
@@ -51,7 +52,7 @@ def init_scheduler(app):
                 from models.funcion import Funcion
                 eliminadas = Funcion.eliminar_funciones_finalizadas()
                 if eliminadas > 0:
-                    logger.info(f"[{datetime.now()}] {eliminadas} funciones finalizadas eliminadas")
+                    logger.info(f"[{now_colombia()}] {eliminadas} funciones finalizadas eliminadas")
             except Exception as e:
                 logger.error(f"Error eliminando funciones finalizadas: {e}")
     

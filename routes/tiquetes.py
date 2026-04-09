@@ -45,12 +45,17 @@ def seleccionar_asientos(funcion_id):
             from datetime import timedelta
             fin = inicio + timedelta(minutes=funcion['duracion'])
 
-        ahora = datetime.now()
+        from utils.timezone import now_colombia
+        ahora = now_colombia()
+
         if funcion['estado'] not in ('programada', 'en_curso'):
             flash('No se pueden comprar entradas para esta función.', 'warning')
             return redirect(url_for('main.detalle_pelicula', pid=funcion['pelicula_id']))
 
-        if ahora >= inicio:
+        # Se permite comprar hasta 10 minutos después del inicio
+        MARGEN_MINUTOS = 10
+        limite_compra = inicio + timedelta(minutes=MARGEN_MINUTOS)
+        if ahora >= limite_compra:
             if funcion['estado'] == 'programada':
                 flash('Ya no se puede comprar entradas para esta función: la hora de inicio ya pasó.', 'warning')
             else:

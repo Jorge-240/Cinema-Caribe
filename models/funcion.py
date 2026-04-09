@@ -188,11 +188,12 @@ class Funcion:
         Debe ejecutarse periódicamente (cada 5 minutos aproximadamente).
         """
         from datetime import datetime, timedelta
+        from utils.timezone import now_colombia
         
         db = get_db()
         cur = db.cursor(dictionary=True)
         try:
-            ahora = datetime.now()
+            ahora = now_colombia()
             
             # 1. Pasar funciones programadas que ya terminaron directamente a FINALIZADA
             cur.execute("""
@@ -251,6 +252,7 @@ class Funcion:
         Debe ejecutarse periódicamente (cada 1 a 24 horas).
         """
         from datetime import datetime
+        from utils.timezone import now_colombia
         
         db = get_db()
         cur = db.cursor(dictionary=True)
@@ -284,7 +286,7 @@ class Funcion:
                     """, (
                         f['pelicula_id'], f['sala_id'], f['fecha'], f['hora'],
                         f['precio'], f['cantidad_tiquetes'], f['ingresos_totales'],
-                        f['duracion'], datetime.now(), f['titulo'], f['nombre']
+                        f['duracion'], now_colombia(), f['titulo'], f['nombre']
                     ))
                     
                     # 3. Eliminar de funciones
@@ -311,11 +313,12 @@ class Funcion:
         Debe ejecutarse periódicamente (cada 1 minuto).
         """
         from datetime import datetime
+        from utils.timezone import now_colombia
         
         db = get_db()
         cur = db.cursor(dictionary=True)
         try:
-            ahora = datetime.now()
+            ahora = now_colombia()
             
             # Obtener funciones finalizadas
             cur.execute("""
