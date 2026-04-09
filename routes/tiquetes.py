@@ -109,23 +109,72 @@ def mis_tiquetes():
 @tiquetes_bp.route('/validar', methods=['GET', 'POST'])
 @admin_required
 def validar():
+    """
+    Valida tickets con la lógica de ventana de 25 minutos.
+    
+    Estados posibles:
+    - temprano: inhabilitado (falta < 25 min)
+    - valido: se puede validar
+    - tarde: función ya inició o terminó
+    - no_encontrado: código inválido
+    """
     resultado = None
     if request.method == 'POST':
-        codigo  = request.form.get('codigo', '').strip()
-        accion  = request.form.get('accion', 'consultar')
-        tiquete = Tiquete.obtener_por_codigo(codigo)
-        if not tiquete:
-            resultado = {'estado': 'invalido', 'mensaje': 'Código no encontrado.'}
-        elif accion == 'usar' and tiquete['estado'] == 'valido':
-            Tiquete.marcar_usado(codigo)
-            tiquete['estado'] = 'usado'
-            detalles = Tiquete.obtener_detalles(tiquete['id'])
-            resultado = {'estado': 'usado', 'mensaje': '¡Tiquete marcado como usado!', 'tiquete': tiquete, 'detalles': detalles}
-        else:
-            detalles = Tiquete.obtener_detalles(tiquete['id'])
-            resultado = {'estado': tiquete['estado'], 'tiquete': tiquete,
-                         'mensaje': f"Estado: {tiquete['estado'].upper()}",
-                         'detalles': detalles}
+        codigo = request.form.get('codigo', '').strip()
+        accion = request.form.get('accion', 'consultar')
+        
+        # Validar con ventana de 25 minutos
+        validacion = Tiquete.validar_con_ventana_25_min(codigo)
+        
+        if validacion['status'] == 'no_encontrado':
+            resultado = {
+                'estado': 'invalido',
+                'mensaje': validacion['mensaje'],
+                'valid': False
+            }
+        elif validacion['status'] == 'temprano':
+            # Ticket no habilitado aún
+            resultado = {
+                'estado': 'inhabilitado',
+                'mensaje': validacion['mensaje'],
+                'valid': False,
+                'tiquete': validacion['tiquete'],
+                'minutos_para_habilitar': validacion.get('minutos_para_habilitar', 0)
+            }
+        elif validacion['status'] == 'valido':
+            # Ticket puede ser validado
+            if accion == 'usar':
+                # Marcar como usado
+                Tiquete.marcar_validado(codigo)
+                detalles = Tiquete.obtener_detalles(validacion['tiquete']['id'])
+                resultado = {
+                    'estado': 'usado',
+                    'mensaje': f"✅ ¡Ticket validado exitosamente! Bienvenido a {validacion['tiquete']['pelicula_titulo']}",
+                    'valid': True,
+                    'tiquete': validacion['tiquete'],
+                    'detalles': detalles
+                }
+            else:
+                # Solo consultar
+                detalles = Tiquete.obtener_detalles(validacion['tiquete']['id'])
+                resultado = {
+                    'estado': 'valido',
+                    'mensaje': validacion['mensaje'],
+                    'valid': True,
+                    'tiquete': validacion['tiquete'],
+                    'detalles': detalles
+                }
+        elif validacion['status'] in ['tarde', 'ya_usado', 'anulado', 'funcion_cancelada']:
+            # Ticket inválido
+            detalles = Tiquete.obtener_detalles(validacion['tiquete']['id']) if validacion['tiquete'] else []
+            resultado = {
+                'estado': validacion['status'],
+                'mensaje': validacion['mensaje'],
+                'valid': False,
+                'tiquete': validacion['tiquete'],
+                'detalles': detalles
+            }
+    
     return render_template('tiquetes/validar.html', resultado=resultado)
 
 

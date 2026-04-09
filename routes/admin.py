@@ -5,6 +5,7 @@ from models.pelicula import Pelicula
 from models.funcion  import Funcion
 from models.tiquete  import Tiquete
 from models.usuario  import Usuario
+from models.historial import HistorialFuncion
 from routes.auth     import admin_required
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/admin')
@@ -225,6 +226,56 @@ def anular_tiquete(tiquete_id):
         flash(f'Error: {e}', 'danger')
     
     return redirect(url_for('admin.historial_tiquetes'))
+
+
+# ── Historial de Funciones ──────────────────────────────────
+@admin_bp.route('/funciones/historial')
+@admin_required
+def historial_funciones():
+    """Muestra el historial de funciones finalizadas."""
+    funciones = HistorialFuncion.listar()
+    stats = HistorialFuncion.stats_general()
+    return render_template('admin/historial_funciones.html',
+                           funciones=funciones,
+                           stats=stats)
+
+
+@admin_bp.route('/funciones/historial/reporte')
+@admin_required
+def reporte_funciones():
+    """Reporte detallado del historial de funciones."""
+    fecha_desde = request.args.get('fecha_desde')
+    fecha_hasta = request.args.get('fecha_hasta')
+    pelicula_id = request.args.get('pelicula_id', type=int)
+    
+    if fecha_desde and fecha_hasta:
+        stats_fechas = HistorialFuncion.stats_por_fecha_rango(fecha_desde, fecha_hasta)
+    else:
+        stats_fechas = None
+    
+    stats_peliculas = HistorialFuncion.stats_por_pelicula()
+    stats_salas = HistorialFuncion.stats_por_sala()
+    stats_general = HistorialFuncion.stats_general()
+    
+    return render_template('admin/reporte_funciones.html',
+                           stats_general=stats_general,
+                           stats_peliculas=stats_peliculas,
+                           stats_salas=stats_salas,
+                           stats_fechas=stats_fechas,
+                           fecha_desde=fecha_desde,
+                           fecha_hasta=fecha_hasta,
+                           pelicula_id=pelicula_id)
+
+
+@admin_bp.route('/funciones/historial/<int:historial_id>')
+@admin_required
+def detalle_historial_funcion(historial_id):
+    """Muestra el detalle de una función del historial."""
+    funcion = HistorialFuncion.obtener(historial_id)
+    if not funcion:
+        flash('Función no encontrada en el historial.', 'danger')
+        return redirect(url_for('admin.historial_funciones'))
+    return render_template('admin/detalle_historial.html', funcion=funcion)
 
 
 # ── API REST ─────────────────────────────────────────────────

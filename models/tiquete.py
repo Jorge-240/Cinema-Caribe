@@ -30,11 +30,12 @@ class Tiquete:
             total = precio_unitario * len(asiento_ids)
             codigo = generar_codigo()
 
-            # 3. Crear tiquete
+            # 3. Crear tiquete con estado inicial 'inhabilitado'
+            # Se habilitará 25 min antes de que inicie la función
             try:
                 cur.execute(
                     """INSERT INTO tiquetes (codigo, usuario_id, funcion_id, total, estado, nombre_cliente)
-                       VALUES (%s,%s,%s,%s,'valido',%s)""",
+                       VALUES (%s,%s,%s,%s,'inhabilitado',%s)""",
                     (codigo, usuario_id, funcion_id, total, nombre_cliente)
                 )
             except Exception as e:
@@ -43,7 +44,7 @@ class Tiquete:
                 if 'Unknown column' in str(e) or '1054' in str(e):
                     cur.execute(
                         "INSERT INTO tiquetes (codigo, usuario_id, funcion_id, total, estado)"
-                        " VALUES (%s,%s,%s,%s,'valido')",
+                        " VALUES (%s,%s,%s,%s,'inhabilitado')",
                         (codigo, usuario_id, funcion_id, total)
                     )
                 else:
@@ -148,7 +149,7 @@ class Tiquete:
         db = get_db()
         cur = db.cursor()
         cur.execute(
-            "UPDATE tiquetes SET estado='anulado' WHERE id=%s AND estado='valido'",
+            "UPDATE tiquetes SET estado='anulado' WHERE id=%s AND estado IN ('valido','inhabilitado')",
             (tiquete_id,)
         )
         afectados = cur.rowcount
@@ -206,3 +207,187 @@ class Tiquete:
         rows = cur.fetchall()
         cur.close()
         return fix_rows(rows)
+
+    @staticmethod
+    def validar_con_ventana_25_min(codigo):
+        """
+        Valida un ticket según la ventana de 25 minutos.
+        
+        Retorna diccionario con:
+        - valid: bool (True si se puede validar)
+        - status: 'temprano', 'valido', 'tarde' o 'no_encontrado'
+        - mensaje: mensaje descriptivo
+        - tiquete: datos del tiquete
+        """
+        from datetime import datetime, timedelta
+        
+        db = get_db()
+        cur = db.cursor(dictionary=True)
+        
+        # Obtener datos del tiquete y función
+        cur.execute("""
+            SELECT t.*, f.fecha, f.hora, f.estado AS funcion_estado,
+                   p.duracion, p.titulo AS pelicula_titulo,
+                   u.nombre AS usuario_nombre,
+                   s.nombre AS sala_nombre
+            FROM tiquetes t
+            JOIN funciones f ON f.id = t.funcion_id
+            JOIN peliculas p ON p.id = f.pelicula_id
+            JOIN usuarios u ON u.id = t.usuario_id
+            JOIN salas s ON s.id = f.sala_id
+            WHERE t.codigo = %s
+        """, (codigo,))
+        
+        resultado = cur.fetchone()
+        cur.close()
+        
+        if not resultado:
+            return {
+                'valid': False,
+                'status': 'no_encontrado',
+                'mensaje': 'Ticket no encontrado.',
+                'tiquete': None
+            }
+        
+        # Verificar si ya fue validado
+        if resultado['estado'] == 'usado':
+            return {
+                'valid': False,
+                'status': 'ya_usado',
+                'mensaje': 'Este ticket ya fue validado y utilizado.',
+                'tiquete': resultado
+            }
+        
+        if resultado['estado'] == 'anulado':
+            return {
+                'valid': False,
+                'status': 'anulado',
+                'mensaje': 'Este ticket ha sido anulado.',
+                'tiquete': resultado
+            }
+        
+        # Calcular horarios
+        fecha_str = resultado['fecha']
+        hora_str = resultado['hora']
+        duracion_min = resultado['duracion']
+        
+        # Construir datetime de inicio de función
+        inicio_funcion = datetime.combine(fecha_str, hora_str)
+        
+        # Ventana de 25 minutos antes
+        inicio_ventana = inicio_funcion - timedelta(minutes=25)
+        fin_ventana = inicio_funcion
+        
+        # Fin de la función (por si termina después de iniciar)
+        fin_funcion = inicio_funcion + timedelta(minutes=duracion_min)
+        
+        # Hora actual
+        ahora = datetime.now()
+        
+        # Determinar estado
+        if resultado['funcion_estado'] == 'cancelada':
+            return {
+                'valid': False,
+                'status': 'funcion_cancelada',
+                'mensaje': 'La función ha sido cancelada.',
+                'tiquete': resultado
+            }
+        
+        if ahora < inicio_ventana:
+            # Aún es temprano - ticket no habilitado
+            minutos_falta = int((inicio_ventana - ahora).total_seconds() / 60)
+            return {
+                'valid': False,
+                'status': 'temprano',
+                'mensaje': f'El ticket se habilitará en {minutos_falta} minutos.',
+                'estado': 'inhabilitado',
+                'tiquete': resultado,
+                'minutos_para_habilitar': minutos_falta
+            }
+        
+        if ahora < fin_ventana:
+            # Dentro de la ventana válida de 25 minutos
+            return {
+                'valid': True,
+                'status': 'valido',
+                'mensaje': f'¡Ticket válido! Puedes acceder a la función {resultado["pelicula_titulo"]} en la sala {resultado["sala_nombre"]}.',
+                'tiquete': resultado
+            }
+        
+        if ahora >= fin_ventana and ahora < fin_funcion:
+            # La película ya comenzó pero aún no termina - ticket inválido pero en horario
+            return {
+                'valid': False,
+                'status': 'tarde',
+                'mensaje': 'La función ya ha iniciado. No se puede validar tickets después del inicio.',
+                'tiquete': resultado
+            }
+        
+        if ahora >= fin_funcion:
+            # La función ya terminó
+            return {
+                'valid': False,
+                'status': 'tarde',
+                'mensaje': 'La función ya ha finalizado.',
+                'tiquete': resultado
+            }
+
+    @staticmethod
+    def marcar_validado(codigo):
+        """Marca un ticket como 'usado' y registra la fecha/hora de validación."""
+        db = get_db()
+        cur = db.cursor()
+        try:
+            from datetime import datetime
+            ahora = datetime.now()
+            cur.execute(
+                """UPDATE tiquetes 
+                   SET estado='usado', fecha_validacion=%s, fue_validado=TRUE 
+                   WHERE codigo=%s AND estado IN ('valido','inhabilitado')""",
+                (ahora, codigo)
+            )
+            db.commit()
+            afectados = cur.rowcount
+            return afectados > 0
+        finally:
+            cur.close()
+
+    @staticmethod
+    def habilitar_tickets_ventana():
+        """
+        Habilita tickets de funciones que están a menos de 25 minutos del inicio.
+        Debe ejecutarse periodicamente (cada 1-5 min).
+        """
+        from datetime import datetime, timedelta
+        
+        db = get_db()
+        cur = db.cursor()
+        try:
+            ahora = datetime.now()
+            ventana_min = ahora + timedelta(minutes=25)
+            ventana_max = ahora + timedelta(minutes=26)
+            
+            # Encontrar funciones que comienzan en los próximos 25 minutos
+            cur.execute("""
+                SELECT id FROM funciones
+                WHERE estado = 'programada'
+                AND CONCAT(fecha, ' ', hora) BETWEEN %s AND %s
+            """, (ahora, ventana_max))
+            
+            funciones = cur.fetchall()
+            funciones_ids = [f[0] for f in funciones]
+            
+            if funciones_ids:
+                fmt = ','.join(['%s'] * len(funciones_ids))
+                cur.execute(f"""
+                    UPDATE tiquetes
+                    SET estado='valido'
+                    WHERE funcion_id IN ({fmt})
+                    AND estado='inhabilitado'
+                """, funciones_ids)
+                db.commit()
+                return cur.rowcount
+            
+            return 0
+        finally:
+            cur.close()

@@ -835,6 +835,15 @@ def create_app(env='default'):
             logger.error(f"Error al registrar blueprints: {e}")
             # La app aún puede servir el /health
 
+        # Inicializar scheduler de tareas automáticas
+        try:
+            from scheduler import init_scheduler
+            init_scheduler(app)
+        except ImportError:
+            logger.warning("⚠️  APScheduler no está instalado. Las tareas automáticas no se ejecutarán.")
+        except Exception as e:
+            logger.error(f"Error inicializando scheduler: {e}")
+
         # Context processor: datos de sesión disponibles en todos los templates
         @app.context_processor
         def inject_user():

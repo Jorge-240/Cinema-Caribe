@@ -57,8 +57,12 @@ CREATE TABLE IF NOT EXISTS funciones (
     hora        TIME NOT NULL,
     precio      DECIMAL(10,2) NOT NULL,
     estado      ENUM('programada','en_curso','finalizada','cancelada') DEFAULT 'programada',
+    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (pelicula_id) REFERENCES peliculas(id) ON DELETE CASCADE,
-    FOREIGN KEY (sala_id)     REFERENCES salas(id)
+    FOREIGN KEY (sala_id)     REFERENCES salas(id),
+    INDEX idx_fecha_hora (fecha, hora),
+    INDEX idx_estado (estado)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ----------------------------------------------------------
@@ -84,11 +88,16 @@ CREATE TABLE IF NOT EXISTS tiquetes (
     funcion_id      INT NOT NULL,
     fecha_compra    DATETIME DEFAULT CURRENT_TIMESTAMP,
     total           DECIMAL(10,2) NOT NULL,
-    estado          ENUM('valido','usado','anulado') DEFAULT 'valido',
+    estado          ENUM('inhabilitado','valido','usado','anulado') DEFAULT 'inhabilitado',
     qr_path         VARCHAR(500),
     nombre_cliente  VARCHAR(120),
+    fecha_validacion DATETIME NULL COMMENT 'Cuándo fue validado el ticket',
+    fue_validado    BOOLEAN DEFAULT FALSE,
     FOREIGN KEY (usuario_id)  REFERENCES usuarios(id),
-    FOREIGN KEY (funcion_id)  REFERENCES funciones(id)
+    FOREIGN KEY (funcion_id)  REFERENCES funciones(id),
+    INDEX idx_codigo (codigo),
+    INDEX idx_estado (estado),
+    INDEX idx_funcion_id (funcion_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ----------------------------------------------------------
@@ -111,6 +120,29 @@ CREATE TABLE IF NOT EXISTS funcion_asiento (
     funcion_id  INT NOT NULL,
     asiento_id  INT NOT NULL,
     tiquete_id  INT NOT NULL,
+
+-- ----------------------------------------------------------
+-- Tabla: historial_funciones
+-- ----------------------------------------------------------
+CREATE TABLE IF NOT EXISTS historial_funciones (
+    id                  INT AUTO_INCREMENT PRIMARY KEY,
+    pelicula_id         INT NOT NULL,
+    sala_id             INT NOT NULL,
+    fecha_original      DATE NOT NULL,
+    hora_original       TIME NOT NULL,
+    precio              DECIMAL(10,2) NOT NULL,
+    cantidad_tiquetes   INT DEFAULT 0 COMMENT 'Cantidad de tiquetes vendidos',
+    ingresos_totales    DECIMAL(10,2) DEFAULT 0 COMMENT 'Dinero total obtenido',
+    duracion_pelicula   INT COMMENT 'Duración en minutos',
+    fecha_finalizacion  DATETIME NOT NULL COMMENT 'Cuándo se archivó la función',
+    pelicula_titulo     VARCHAR(200),
+    sala_nombre         VARCHAR(60),
+    created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (pelicula_id) REFERENCES peliculas(id),
+    FOREIGN KEY (sala_id) REFERENCES salas(id),
+    INDEX idx_fecha_original (fecha_original),
+    INDEX idx_pelicula_id (pelicula_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     PRIMARY KEY (funcion_id, asiento_id),
     FOREIGN KEY (funcion_id)  REFERENCES funciones(id),
     FOREIGN KEY (asiento_id)  REFERENCES asientos(id),

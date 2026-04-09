@@ -168,3 +168,119 @@ class Funcion:
         rows = cur.fetchall()
         cur.close()
         return fix_rows(rows)
+
+    @staticmethod
+    def actualizar_estados_automaticos():
+        """
+        Actualiza estados de funciones automáticamente:
+        - programada -> en_curso (cuando llega la hora)
+        - en_curso -> finalizada (cuando termina la película)
+        
+        Debe ejecutarse periódicamente (cada 5 minutos aproximadamente).
+        """
+        from datetime import datetime, timedelta
+        
+        db = get_db()
+        cur = db.cursor(dictionary=True)
+        try:
+            ahora = datetime.now()
+            
+            # 1. Actualizar funciones que deben cambiar a EN_CURSO
+            cur.execute("""
+                SELECT f.id, f.fecha, f.hora, p.duracion
+                FROM funciones f
+                JOIN peliculas p ON p.id = f.pelicula_id
+                WHERE f.estado = 'programada'
+                AND CONCAT(f.fecha, ' ', f.hora) <= %s
+                AND DATE_ADD(CONCAT(f.fecha, ' ', f.hora), INTERVAL p.duracion MINUTE) > %s
+            """, (ahora, ahora))
+            
+            funciones_curso = cur.fetchall()
+            ids_curso = [f['id'] for f in funciones_curso]
+            
+            if ids_curso:
+                fmt = ','.join(['%s'] * len(ids_curso))
+                cur.execute(f"UPDATE funciones SET estado='en_curso' WHERE id IN ({fmt})", ids_curso)
+            
+            # 2. Actualizar funciones que deben cambiar a FINALIZADA
+            cur.execute("""
+                SELECT f.id, f.fecha, f.hora, p.duracion
+                FROM funciones f
+                JOIN peliculas p ON p.id = f.pelicula_id
+                WHERE f.estado = 'en_curso'
+                AND DATE_ADD(CONCAT(f.fecha, ' ', f.hora), INTERVAL p.duracion MINUTE) <= %s
+            """, (ahora,))
+            
+            funciones_fin = cur.fetchall()
+            ids_fin = [f['id'] for f in funciones_fin]
+            
+            if ids_fin:
+                fmt = ','.join(['%s'] * len(ids_fin))
+                cur.execute(f"UPDATE funciones SET estado='finalizada' WHERE id IN ({fmt})", ids_fin)
+            
+            db.commit()
+            return len(ids_curso), len(ids_fin)
+        finally:
+            cur.close()
+
+    @staticmethod
+    def mover_finalizadas_a_historial():
+        """
+        Mueve funciones finalizadas al historial y las elimina de la tabla activa.
+        Solo se mueven si tienen datos completos.
+        
+        Debe ejecutarse periódicamente (cada 1 a 24 horas).
+        """
+        from datetime import datetime
+        
+        db = get_db()
+        cur = db.cursor(dictionary=True)
+        try:
+            # 1. Obtener funciones finalizadas
+            cur.execute("""
+                SELECT f.id, f.pelicula_id, f.sala_id, f.fecha, f.hora, 
+                       f.precio, p.duracion, p.titulo, s.nombre,
+                       COUNT(t.id) AS cantidad_tiquetes,
+                       COALESCE(SUM(t.total), 0) AS ingresos_totales
+                FROM funciones f
+                JOIN peliculas p ON p.id = f.pelicula_id
+                JOIN salas s ON s.id = f.sala_id
+                LEFT JOIN tiquetes t ON t.funcion_id = f.id AND t.estado IN ('usado', 'valido')
+                WHERE f.estado = 'finalizada'
+                GROUP BY f.id
+            """)
+            
+            funciones = cur.fetchall()
+            movidas = 0
+            
+            for f in funciones:
+                try:
+                    # 2. Insertar en historial
+                    cur.execute("""
+                        INSERT INTO historial_funciones 
+                        (pelicula_id, sala_id, fecha_original, hora_original, precio,
+                         cantidad_tiquetes, ingresos_totales, duracion_pelicula,
+                         fecha_finalizacion, pelicula_titulo, sala_nombre)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """, (
+                        f['pelicula_id'], f['sala_id'], f['fecha'], f['hora'],
+                        f['precio'], f['cantidad_tiquetes'], f['ingresos_totales'],
+                        f['duracion'], datetime.now(), f['titulo'], f['nombre']
+                    ))
+                    
+                    # 3. Eliminar de funciones
+                    cur.execute("DELETE FROM funciones WHERE id = %s", (f['id'],))
+                    
+                    db.commit()
+                    movida = True
+                except Exception as e:
+                    db.rollback()
+                    print(f"Error moviendo función {f['id']}: {e}")
+                    movida = False
+                
+                if movida:
+                    movidas += 1
+            
+            return movidas
+        finally:
+            cur.close()
