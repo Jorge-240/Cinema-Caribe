@@ -34,7 +34,7 @@ class Funcion:
             conditions.append("f.pelicula_id = %s")
             params.append(pelicula_id)
         if solo_futuras:
-            conditions.append("CONCAT(f.fecha,' ',f.hora) >= NOW()")
+            conditions.append("TIMESTAMP(f.fecha, f.hora) >= NOW()")
         if conditions:
             sql += " WHERE " + " AND ".join(conditions)
         sql += " ORDER BY f.fecha, f.hora"
@@ -69,8 +69,8 @@ class Funcion:
             SELECT id FROM funciones
             WHERE sala_id = %s AND fecha = %s AND estado != 'cancelada'
               AND ABS(TIMESTAMPDIFF(MINUTE,
-                    CONCAT(fecha,' ',hora),
-                    CONCAT(%s,' ',%s))) < (
+                    TIMESTAMP(fecha, hora),
+                    TIMESTAMP(%s, %s))) < (
                       SELECT duracion FROM peliculas WHERE id=%s
                   )
         """
@@ -125,9 +125,17 @@ class Funcion:
     def eliminar(fid):
         db = get_db()
         cur = db.cursor()
-        cur.execute("DELETE FROM funciones WHERE id = %s", (fid,))
-        db.commit()
-        cur.close()
+        try:
+            # Eliminar primero relaciones de asientos y luego tickets para evitar errores de FK
+            cur.execute("DELETE FROM funcion_asiento WHERE funcion_id = %s", (fid,))
+            cur.execute("DELETE FROM tiquetes WHERE funcion_id = %s", (fid,))
+            cur.execute("DELETE FROM funciones WHERE id = %s", (fid,))
+            db.commit()
+        except Exception:
+            db.rollback()
+            raise
+        finally:
+            cur.close()
 
     @staticmethod
     def ocupacion(fid):
