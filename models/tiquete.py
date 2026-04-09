@@ -14,8 +14,32 @@ class Tiquete:
         Lanza ValueError si algún asiento ya está ocupado.
         """
         db = get_db()
-        cur = db.cursor()
+        cur = db.cursor(dictionary=True)
         try:
+            # 0. Verificar que la función esté disponible para venta.
+            from datetime import datetime, timedelta
+            cur.execute(
+                "SELECT f.fecha, f.hora, f.estado, p.duracion "
+                "FROM funciones f "
+                "JOIN peliculas p ON p.id = f.pelicula_id "
+                "WHERE f.id = %s",
+                (funcion_id,)
+            )
+            funcion = cur.fetchone()
+            if not funcion:
+                raise ValueError('Función inválida.')
+
+            inicio_funcion = datetime.combine(funcion['fecha'], funcion['hora'])
+            fin_funcion = inicio_funcion + timedelta(minutes=funcion['duracion'])
+            ahora = datetime.now()
+
+            if funcion['estado'] == 'cancelada':
+                raise ValueError('No se pueden comprar entradas para una función cancelada.')
+            if ahora >= inicio_funcion:
+                raise ValueError('No se pueden comprar entradas para esta función porque ya ha iniciado.')
+            if funcion['estado'] != 'programada':
+                raise ValueError('La función no está disponible para compra en este momento.')
+
             # 1. Bloquear filas para evitar race-condition
             fmt = ','.join(['%s'] * len(asiento_ids))
             cur.execute(
@@ -34,18 +58,23 @@ class Tiquete:
             # Se habilitará 25 min antes de que inicie la función
             try:
                 cur.execute(
-                    """INSERT INTO tiquetes (codigo, usuario_id, funcion_id, total, estado, nombre_cliente)
-                       VALUES (%s,%s,%s,%s,'inhabilitado',%s)""",
+                    "INSERT INTO tiquetes (codigo, usuario_id, funcion_id, total, estado, nombre_cliente)"
+                    " VALUES (%s,%s,%s,%s,'inhabilitado',%s)",
                     (codigo, usuario_id, funcion_id, total, nombre_cliente)
                 )
             except Exception as e:
-                # En caso de que la tabla no tenga la columna nombre_cliente aún,
-                # seguir con la inserción sin ese campo para que la compra no falle.
-                if 'Unknown column' in str(e) or '1054' in str(e):
+                msg = str(e)
+                if 'Unknown column' in msg or '1054' in msg:
                     cur.execute(
                         "INSERT INTO tiquetes (codigo, usuario_id, funcion_id, total, estado)"
                         " VALUES (%s,%s,%s,%s,'inhabilitado')",
                         (codigo, usuario_id, funcion_id, total)
+                    )
+                elif 'Data truncated for column' in msg and 'estado' in msg:
+                    cur.execute(
+                        "INSERT INTO tiquetes (codigo, usuario_id, funcion_id, total, nombre_cliente)"
+                        " VALUES (%s,%s,%s,%s,%s)",
+                        (codigo, usuario_id, funcion_id, total, nombre_cliente)
                     )
                 else:
                     raise

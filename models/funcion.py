@@ -34,8 +34,9 @@ class Funcion:
             conditions.append("f.pelicula_id = %s")
             params.append(pelicula_id)
         if solo_futuras:
-            # Mostrar funciones programadas en cartelera sin depender de la hora del servidor.
+            # Mostrar solo funciones programadas que aún no han comenzado.
             conditions.append("f.estado = 'programada'")
+            conditions.append("(f.fecha > CURDATE() OR (f.fecha = CURDATE() AND f.hora > CURTIME()))")
         if conditions:
             sql += " WHERE " + " AND ".join(conditions)
         sql += " ORDER BY f.fecha, f.hora"
@@ -200,8 +201,8 @@ class Funcion:
                 FROM funciones f
                 JOIN peliculas p ON p.id = f.pelicula_id
                 WHERE f.estado = 'programada'
-                AND CONCAT(f.fecha, ' ', f.hora) <= %s
-                AND DATE_ADD(CONCAT(f.fecha, ' ', f.hora), INTERVAL p.duracion MINUTE) > %s
+                AND TIMESTAMP(f.fecha, f.hora) <= %s
+                AND DATE_ADD(TIMESTAMP(f.fecha, f.hora), INTERVAL p.duracion MINUTE) > %s
             """, (ahora, ahora))
             
             funciones_curso = cur.fetchall()
@@ -217,7 +218,7 @@ class Funcion:
                 FROM funciones f
                 JOIN peliculas p ON p.id = f.pelicula_id
                 WHERE f.estado = 'en_curso'
-                AND DATE_ADD(CONCAT(f.fecha, ' ', f.hora), INTERVAL p.duracion MINUTE) <= %s
+                AND DATE_ADD(TIMESTAMP(f.fecha, f.hora), INTERVAL p.duracion MINUTE) <= %s
             """, (ahora,))
             
             funciones_fin = cur.fetchall()

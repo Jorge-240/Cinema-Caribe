@@ -17,6 +17,13 @@ def seleccionar_asientos(funcion_id):
     if not funcion:
         flash('Función no encontrada.', 'danger')
         return redirect(url_for('main.home'))
+
+    from datetime import datetime
+    inicio = datetime.combine(funcion['fecha'], funcion['hora'])
+    if funcion['estado'] != 'programada' or datetime.now() >= inicio:
+        flash('No se pueden comprar entradas para esta función porque ya ha iniciado o no está disponible.', 'warning')
+        return redirect(url_for('main.detalle_pelicula', pid=funcion['pelicula_id']))
+
     asientos = Asiento.listar_por_funcion(funcion_id)
     # Organizar en grid
     grid = {}
