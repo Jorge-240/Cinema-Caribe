@@ -34,8 +34,9 @@ class Funcion:
             conditions.append("f.pelicula_id = %s")
             params.append(pelicula_id)
         if solo_futuras:
-            # Mostrar funciones programadas O en curso (no finalizadas ni canceladas)
-            conditions.append("f.estado IN ('programada', 'en_curso')")
+            # Mostrar SÓLO funciones programadas, para evitar
+            # que se puedan comprar tiquetes de funciones que ya pasaron a 'en_curso'
+            conditions.append("f.estado = 'programada'")
         if conditions:
             sql += " WHERE " + " AND ".join(conditions)
         sql += " ORDER BY f.fecha, f.hora"
