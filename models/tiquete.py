@@ -29,7 +29,18 @@ class Tiquete:
             if not funcion:
                 raise ValueError('Función inválida.')
 
-            inicio_funcion = datetime.combine(funcion['fecha'], funcion['hora'])
+            # Manejar tipos de datos - pueden ser strings o datetime objects
+            if hasattr(funcion['fecha'], 'year'):
+                fecha_obj = funcion['fecha']
+            else:
+                fecha_obj = datetime.strptime(str(funcion['fecha']), '%Y-%m-%d').date()
+            
+            if hasattr(funcion['hora'], 'hour'):
+                hora_obj = funcion['hora']
+            else:
+                hora_obj = datetime.strptime(str(funcion['hora']), '%H:%M:%S').time()
+            
+            inicio_funcion = datetime.combine(fecha_obj, hora_obj)
             fin_funcion = inicio_funcion + timedelta(minutes=funcion['duracion'])
             ahora = datetime.now()
 
@@ -37,7 +48,7 @@ class Tiquete:
                 raise ValueError('No se pueden comprar entradas para una función cancelada.')
             if ahora >= inicio_funcion:
                 raise ValueError('No se pueden comprar entradas para esta función porque ya ha iniciado.')
-            if funcion['estado'] != 'programada':
+            if funcion['estado'] not in ('programada', 'en_curso'):
                 raise ValueError('La función no está disponible para compra en este momento.')
 
             # 1. Bloquear filas para evitar race-condition

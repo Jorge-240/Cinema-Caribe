@@ -19,10 +19,20 @@ def seleccionar_asientos(funcion_id):
         return redirect(url_for('main.home'))
 
     from datetime import datetime
-    inicio = datetime.combine(funcion['fecha'], funcion['hora'])
-    if funcion['estado'] != 'programada' or datetime.now() >= inicio:
-        flash('No se pueden comprar entradas para esta función porque ya ha iniciado o no está disponible.', 'warning')
-        return redirect(url_for('main.detalle_pelicula', pid=funcion['pelicula_id']))
+    try:
+        # Construir fecha y hora - manejar si son strings o datetime objects
+        fecha_obj = funcion['fecha'] if hasattr(funcion['fecha'], 'year') else datetime.strptime(str(funcion['fecha']), '%Y-%m-%d').date()
+        hora_obj = funcion['hora'] if hasattr(funcion['hora'], 'hour') else datetime.strptime(str(funcion['hora']), '%H:%M:%S').time()
+        inicio = datetime.combine(fecha_obj, hora_obj)
+        
+        # Permitir compra solo si la función está EN PROGRAMADA o EN_CURSO y no ha pasado la hora de inicio
+        if funcion['estado'] not in ('programada', 'en_curso') or datetime.now() >= inicio:
+            flash('No se pueden comprar entradas para esta función.', 'warning')
+            return redirect(url_for('main.detalle_pelicula', pid=funcion['pelicula_id']))
+    except Exception as e:
+        current_app.logger.error(f"Error validando función {funcion_id}: {e}")
+        flash('Error al validar la función.', 'danger')
+        return redirect(url_for('main.home'))
 
     asientos = Asiento.listar_por_funcion(funcion_id)
     # Organizar en grid
