@@ -37,6 +37,13 @@ class Tiquete:
                     return value
                 if mode == 'time' and hasattr(value, 'hour'):
                     return value
+                # MySQL TIME fields come as timedelta — convert to time object
+                if isinstance(value, timedelta):
+                    total_seconds = int(value.total_seconds())
+                    hours, remainder = divmod(total_seconds, 3600)
+                    minutes, seconds = divmod(remainder, 60)
+                    from datetime import time as dt_time
+                    return dt_time(hours % 24, minutes, seconds)
                 text = str(value)
                 formats = ['%Y-%m-%d', '%Y-%m-%d %H:%M:%S', '%Y-%m-%d %H:%M'] if mode == 'date' else ['%H:%M:%S', '%H:%M']
                 for fmt in formats:
@@ -328,6 +335,13 @@ class Tiquete:
                 return value
             if mode == 'time' and hasattr(value, 'hour'):
                 return value
+            # MySQL TIME fields come as timedelta — convert to time object
+            if isinstance(value, timedelta):
+                total_seconds = int(value.total_seconds())
+                hours, remainder = divmod(total_seconds, 3600)
+                minutes, seconds = divmod(remainder, 60)
+                from datetime import time as dt_time
+                return dt_time(hours % 24, minutes, seconds)
             text = str(value)
             formats = ['%Y-%m-%d', '%Y-%m-%d %H:%M:%S', '%Y-%m-%d %H:%M'] if mode == 'date' else ['%H:%M:%S', '%H:%M']
             for fmt in formats:
@@ -399,6 +413,14 @@ class Tiquete:
                 'mensaje': 'La función ya ha finalizado.',
                 'tiquete': resultado
             }
+        
+        # Fallback: caso no cubierto (no debería ocurrir, pero previene retorno None → 500)
+        return {
+            'valid': False,
+            'status': 'tarde',
+            'mensaje': 'No se puede validar el ticket en este momento.',
+            'tiquete': resultado
+        }
 
     @staticmethod
     def marcar_validado(codigo):
@@ -406,15 +428,25 @@ class Tiquete:
         db = get_db()
         cur = db.cursor()
         try:
-            from datetime import datetime
             from utils.timezone import now_colombia
             ahora = now_colombia()
-            cur.execute(
-                """UPDATE tiquetes 
-                   SET estado='usado', fecha_validacion=%s, fue_validado=TRUE 
-                   WHERE codigo=%s AND estado IN ('valido','inhabilitado')""",
-                (ahora, codigo)
-            )
+            # Intentar con columnas extendidas primero; si fallan, usar solo 'estado'
+            try:
+                cur.execute(
+                    """UPDATE tiquetes 
+                       SET estado='usado', fecha_validacion=%s, fue_validado=TRUE 
+                       WHERE codigo=%s AND estado IN ('valido','inhabilitado')""",
+                    (ahora, codigo)
+                )
+            except Exception as e:
+                msg = str(e)
+                if 'Unknown column' in msg or '1054' in msg:
+                    cur.execute(
+                        "UPDATE tiquetes SET estado='usado' WHERE codigo=%s AND estado IN ('valido','inhabilitado')",
+                        (codigo,)
+                    )
+                else:
+                    raise
             db.commit()
             afectados = cur.rowcount
             return afectados > 0

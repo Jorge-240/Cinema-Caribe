@@ -27,6 +27,14 @@ def seleccionar_asientos(funcion_id):
                 return value
             if mode == 'time' and hasattr(value, 'hour'):
                 return value
+            # MySQL TIME fields come as timedelta — convert to time object
+            from datetime import timedelta as _td
+            if isinstance(value, _td):
+                total_seconds = int(value.total_seconds())
+                hours, remainder = divmod(total_seconds, 3600)
+                minutes, seconds = divmod(remainder, 60)
+                from datetime import time as dt_time
+                return dt_time(hours % 24, minutes, seconds)
             text = str(value)
             formats = ['%Y-%m-%d', '%Y-%m-%d %H:%M:%S', '%Y-%m-%d %H:%M'] if mode == 'date' else ['%H:%M:%S', '%H:%M']
             for fmt in formats:
