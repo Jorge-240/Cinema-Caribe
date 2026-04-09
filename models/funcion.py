@@ -34,7 +34,8 @@ class Funcion:
             conditions.append("f.pelicula_id = %s")
             params.append(pelicula_id)
         if solo_futuras:
-            conditions.append("TIMESTAMP(f.fecha, f.hora) >= NOW()")
+            # Mostrar funciones programadas en cartelera sin depender de la hora del servidor.
+            conditions.append("f.estado = 'programada'")
         if conditions:
             sql += " WHERE " + " AND ".join(conditions)
         sql += " ORDER BY f.fecha, f.hora"
