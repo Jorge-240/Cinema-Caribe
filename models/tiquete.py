@@ -306,6 +306,10 @@ class Tiquete:
                 'tiquete': None
             }
         
+        # Convertir timedelta (campo TIME de MySQL) a string "HH:MM"
+        # para que el template Jinja2 pueda mostrarlo sin errores
+        resultado = fix_row(resultado)
+        
         # Verificar si ya fue validado
         if resultado['estado'] == 'usado':
             return {
