@@ -29,17 +29,25 @@ class Tiquete:
             if not funcion:
                 raise ValueError('Función inválida.')
 
-            # Manejar tipos de datos - pueden ser strings o datetime objects
-            if hasattr(funcion['fecha'], 'year'):
-                fecha_obj = funcion['fecha']
-            else:
-                fecha_obj = datetime.strptime(str(funcion['fecha']), '%Y-%m-%d').date()
-            
-            if hasattr(funcion['hora'], 'hour'):
-                hora_obj = funcion['hora']
-            else:
-                hora_obj = datetime.strptime(str(funcion['hora']), '%H:%M:%S').time()
-            
+            def parse_date_or_time(value, mode='date'):
+                if value is None:
+                    raise ValueError('Fecha u hora inválida')
+                if mode == 'date' and hasattr(value, 'year'):
+                    return value
+                if mode == 'time' and hasattr(value, 'hour'):
+                    return value
+                text = str(value)
+                formats = ['%Y-%m-%d', '%Y-%m-%d %H:%M:%S', '%Y-%m-%d %H:%M'] if mode == 'date' else ['%H:%M:%S', '%H:%M']
+                for fmt in formats:
+                    try:
+                        parsed = datetime.strptime(text, fmt)
+                        return parsed.date() if mode == 'date' else parsed.time()
+                    except ValueError:
+                        continue
+                raise ValueError(f'Formato de {mode} no válido: {text}')
+
+            fecha_obj = parse_date_or_time(funcion['fecha'], mode='date')
+            hora_obj = parse_date_or_time(funcion['hora'], mode='time')
             inicio_funcion = datetime.combine(fecha_obj, hora_obj)
             fin_funcion = inicio_funcion + timedelta(minutes=funcion['duracion'])
             ahora = datetime.now()
@@ -307,12 +315,30 @@ class Tiquete:
             }
         
         # Calcular horarios
-        fecha_str = resultado['fecha']
-        hora_str = resultado['hora']
+        fecha_val = resultado['fecha']
+        hora_val = resultado['hora']
         duracion_min = resultado['duracion']
-        
-        # Construir datetime de inicio de función
-        inicio_funcion = datetime.combine(fecha_str, hora_str)
+
+        def parse_date_or_time(value, mode='date'):
+            if value is None:
+                raise ValueError('Fecha u hora inválida')
+            if mode == 'date' and hasattr(value, 'year'):
+                return value
+            if mode == 'time' and hasattr(value, 'hour'):
+                return value
+            text = str(value)
+            formats = ['%Y-%m-%d', '%Y-%m-%d %H:%M:%S', '%Y-%m-%d %H:%M'] if mode == 'date' else ['%H:%M:%S', '%H:%M']
+            for fmt in formats:
+                try:
+                    parsed = datetime.strptime(text, fmt)
+                    return parsed.date() if mode == 'date' else parsed.time()
+                except ValueError:
+                    continue
+            raise ValueError(f'Formato de {mode} no válido: {text}')
+
+        fecha_obj = parse_date_or_time(fecha_val, mode='date')
+        hora_obj = parse_date_or_time(hora_val, mode='time')
+        inicio_funcion = datetime.combine(fecha_obj, hora_obj)
         
         # Ventana de 25 minutos antes
         inicio_ventana = inicio_funcion - timedelta(minutes=25)

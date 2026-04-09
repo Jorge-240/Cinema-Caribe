@@ -194,41 +194,51 @@ class Funcion:
         try:
             ahora = datetime.now()
             
-            # 1. Actualizar funciones que deben cambiar a EN_CURSO
+            # 1. Pasar funciones programadas que ya terminaron directamente a FINALIZADA
             cur.execute("""
-                SELECT f.id, f.fecha, f.hora, p.duracion
+                SELECT f.id
+                FROM funciones f
+                JOIN peliculas p ON p.id = f.pelicula_id
+                WHERE f.estado = 'programada'
+                AND DATE_ADD(TIMESTAMP(f.fecha, f.hora), INTERVAL p.duracion MINUTE) <= %s
+            """, (ahora,))
+            funciones_finalizadas = cur.fetchall()
+            ids_finalizadas = [f['id'] for f in funciones_finalizadas]
+            if ids_finalizadas:
+                fmt = ','.join(['%s'] * len(ids_finalizadas))
+                cur.execute(f"UPDATE funciones SET estado='finalizada' WHERE id IN ({fmt})", ids_finalizadas)
+            
+            # 2. Actualizar funciones que deben cambiar a EN_CURSO
+            cur.execute("""
+                SELECT f.id
                 FROM funciones f
                 JOIN peliculas p ON p.id = f.pelicula_id
                 WHERE f.estado = 'programada'
                 AND TIMESTAMP(f.fecha, f.hora) <= %s
                 AND DATE_ADD(TIMESTAMP(f.fecha, f.hora), INTERVAL p.duracion MINUTE) > %s
             """, (ahora, ahora))
-            
             funciones_curso = cur.fetchall()
             ids_curso = [f['id'] for f in funciones_curso]
-            
             if ids_curso:
                 fmt = ','.join(['%s'] * len(ids_curso))
                 cur.execute(f"UPDATE funciones SET estado='en_curso' WHERE id IN ({fmt})", ids_curso)
             
-            # 2. Actualizar funciones que deben cambiar a FINALIZADA
+            # 3. Actualizar funciones que deben cambiar a FINALIZADA
             cur.execute("""
-                SELECT f.id, f.fecha, f.hora, p.duracion
+                SELECT f.id
                 FROM funciones f
                 JOIN peliculas p ON p.id = f.pelicula_id
                 WHERE f.estado = 'en_curso'
                 AND DATE_ADD(TIMESTAMP(f.fecha, f.hora), INTERVAL p.duracion MINUTE) <= %s
             """, (ahora,))
-            
             funciones_fin = cur.fetchall()
             ids_fin = [f['id'] for f in funciones_fin]
-            
             if ids_fin:
                 fmt = ','.join(['%s'] * len(ids_fin))
                 cur.execute(f"UPDATE funciones SET estado='finalizada' WHERE id IN ({fmt})", ids_fin)
             
             db.commit()
-            return len(ids_curso), len(ids_fin)
+            return len(ids_curso), len(ids_fin) + len(ids_finalizadas)
         finally:
             cur.close()
 

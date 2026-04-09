@@ -20,14 +20,45 @@ def seleccionar_asientos(funcion_id):
 
     from datetime import datetime
     try:
-        # Construir fecha y hora - manejar si son strings o datetime objects
-        fecha_obj = funcion['fecha'] if hasattr(funcion['fecha'], 'year') else datetime.strptime(str(funcion['fecha']), '%Y-%m-%d').date()
-        hora_obj = funcion['hora'] if hasattr(funcion['hora'], 'hour') else datetime.strptime(str(funcion['hora']), '%H:%M:%S').time()
+        def parse_date_or_time(value, mode='date'):
+            if value is None:
+                raise ValueError('Fecha u hora inválida')
+            if mode == 'date' and hasattr(value, 'year'):
+                return value
+            if mode == 'time' and hasattr(value, 'hour'):
+                return value
+            text = str(value)
+            formats = ['%Y-%m-%d', '%Y-%m-%d %H:%M:%S', '%Y-%m-%d %H:%M'] if mode == 'date' else ['%H:%M:%S', '%H:%M']
+            for fmt in formats:
+                try:
+                    parsed = datetime.strptime(text, fmt)
+                    return parsed.date() if mode == 'date' else parsed.time()
+                except ValueError:
+                    continue
+            raise ValueError(f'Formato de {mode} no válido: {text}')
+
+        fecha_obj = parse_date_or_time(funcion['fecha'], mode='date')
+        hora_obj = parse_date_or_time(funcion['hora'], mode='time')
         inicio = datetime.combine(fecha_obj, hora_obj)
-        
-        # Permitir compra solo si la función está EN PROGRAMADA o EN_CURSO y no ha pasado la hora de inicio
-        if funcion['estado'] not in ('programada', 'en_curso') or datetime.now() >= inicio:
+        fin = inicio
+        if 'duracion' in funcion and funcion['duracion'] is not None:
+            from datetime import timedelta
+            fin = inicio + timedelta(minutes=funcion['duracion'])
+
+        ahora = datetime.now()
+        if funcion['estado'] not in ('programada', 'en_curso'):
             flash('No se pueden comprar entradas para esta función.', 'warning')
+            return redirect(url_for('main.detalle_pelicula', pid=funcion['pelicula_id']))
+
+        if ahora >= inicio:
+            if funcion['estado'] == 'programada':
+                flash('Ya no se puede comprar entradas para esta función: la hora de inicio ya pasó.', 'warning')
+            else:
+                flash('Ya no se puede comprar entradas para esta función: la función ya comenzó.', 'warning')
+            return redirect(url_for('main.detalle_pelicula', pid=funcion['pelicula_id']))
+
+        if funcion['estado'] == 'en_curso' and ahora >= fin:
+            flash('La función ya finalizó.', 'warning')
             return redirect(url_for('main.detalle_pelicula', pid=funcion['pelicula_id']))
     except Exception as e:
         current_app.logger.error(f"Error validando función {funcion_id}: {e}")

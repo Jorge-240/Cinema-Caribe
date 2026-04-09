@@ -19,8 +19,8 @@ def init_scheduler(app):
     """Inicializa el scheduler cuando la app arranca."""
     scheduler = BackgroundScheduler(daemon=True)
     
-    # 1. Actualizar estados cada 5 minutos
-    @scheduler.scheduled_job(IntervalTrigger(minutes=5))
+    # 1. Actualizar estados cada 1 minuto (para cambios de estado y eliminación inmediatos)
+    @scheduler.scheduled_job(IntervalTrigger(minutes=1))
     def actualizar_estados_funciones():
         with app.app_context():
             try:
